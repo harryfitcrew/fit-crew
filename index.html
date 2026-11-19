@@ -189,6 +189,22 @@ textarea{resize:vertical;min-height:70px}
 .pick{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;pointer-events:none}
 #toast div{background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.4);animation:up .2s}
+/* Barcode scanning */
+.scanbtn{margin-bottom:12px}
+.scanned{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
+.scanned .sh{display:flex;align-items:flex-start;gap:8px}
+.scanned .t{flex:1;display:flex;flex-direction:column;gap:2px}
+.scanned small{color:var(--muted);font-size:12px}
+.scanned .qa{display:flex;flex-direction:column;justify-content:flex-end;gap:6px}
+.scanned .qa .btn{padding:6px 10px;font-size:13px}
+#scan{position:fixed;inset:0;z-index:65;background:#000;display:flex;flex-direction:column}
+#scan .scan-cam{position:relative;flex:1;overflow:hidden}
+#scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#scan .scan-frame{position:absolute;left:10%;right:10%;top:50%;height:28%;transform:translateY(-50%);border:3px solid var(--accent);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+#scan .scan-panel{background:var(--bg);padding:14px 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
+#scan .scan-msg{margin:0;font-weight:600;text-align:center}
+#scan .scan-type{display:flex;gap:8px}
+#scan .scan-type input{flex:1;min-width:0}
 #confetti{position:fixed;inset:0;z-index:70;pointer-events:none}
 @media (min-width:620px){.tiles{grid-template-columns:repeat(3,1fr)}.tile.lead{grid-column:span 3}}
 @media (max-width:350px){.tiles{grid-template-columns:1fr}.g4{grid-template-columns:1fr 1fr}}
@@ -217,6 +233,7 @@ textarea{resize:vertical;min-height:70px}
 <canvas id="confetti"></canvas>
 <script src="config.js"></script>
 <script src="logic.js"></script>
+<script src="scan.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

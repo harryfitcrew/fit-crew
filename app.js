@@ -64,6 +64,7 @@
     flame: '<svg viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.7 7-6.8 0-3.4-2.3-5.6-3.6-7.6-.4 1.6-1.3 2.7-2.4 3.2C13.4 7 12 4 9.5 2c.2 3.4-1.6 5.4-3.1 7.4A8.5 8.5 0 005 15.2C5 19.3 8 22 12 22z"/></svg>',
     crown: '<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+    barcode: '<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>',
     share: '<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>'
   };
 
@@ -402,6 +403,30 @@
 
   /* ---------- Me page ---------- */
   function dv(k, d) { return S.draft[k] != null ? S.draft[k] : d; }
+  /* ---------- Barcode food (scan.js + Open Food Facts) ---------- */
+  function scanCalc(p, g) {
+    var m = (g || 0) / 100;
+    return { kcal: Math.round(p.kcal * m), p: Math.round(p.p * m * 10) / 10, c: Math.round(p.c * m * 10) / 10, f: Math.round(p.f * m * 10) / 10 };
+  }
+  function scanCalcText(p, g) {
+    var r = scanCalc(p, g);
+    return g > 0 ? "= <b>" + fmt(r.kcal) + " cal</b> · P " + fmt(r.p) + " · C " + fmt(r.c) + " · F " + fmt(r.f) : "Enter how much you had.";
+  }
+  function scanBlock() {
+    if (!window.FCScan) return "";
+    var p = S.scan;
+    if (!p) return '<button class="btn wide scanbtn" data-act="scan">' + ICON.barcode + "Scan a barcode</button>";
+    var u = p.liquid ? "ml" : "g", g = parseFloat(dv("sG", p.serving || 100)) || 0;
+    var per = "Per 100 " + u + ": " + fmt(Math.round(p.kcal)) + " cal · P " + fmt(Math.round(p.p * 10) / 10) + " · C " + fmt(Math.round(p.c * 10) / 10) + " · F " + fmt(Math.round(p.f * 10) / 10);
+    return '<div class="scanned"><div class="sh"><div class="t"><b>' + esc(p.name) + "</b>" + (p.brand ? "<small>" + esc(p.brand) + "</small>" : "") + '<small>' + per + '</small></div><button class="x" data-act="scanclear" aria-label="Discard">×</button></div>'
+      + '<div class="g2"><label class="f">How much (' + u + ')<input id="sG" inputmode="decimal" value="' + esc(String(dv("sG", p.serving || 100))) + '"></label><div class="qa">'
+      + (p.serving ? '<button class="btn ghost" data-act="scanamt" data-v="' + p.serving + '">' + esc(p.servingText && p.servingText.length <= 22 && p.servingText.indexOf(String(p.serving)) >= 0 && !/^\s*[\d.,]+\s*(g|ml)\s*$/i.test(p.servingText) ? p.servingText : "1 serve (" + fmt(p.serving) + " " + u + ")") + "</button>" : "")
+      + '<button class="btn ghost" data-act="scanamt" data-v="100">100 ' + u + "</button></div></div>"
+      + '<p class="hint" id="sCalc">' + scanCalcText(p, g) + "</p>"
+      + '<button class="btn pri wide" data-act="scanadd">Add to food</button>'
+      + '<p class="hint">From Open Food Facts, a free database filled in by volunteers. Check it against the packet if it looks off.</p></div>';
+  }
+
   function renderMe(fromSync) {
     var el = $("#me"); if (!el) return;
     if (fromSync && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return; // don't wipe typing
@@ -426,6 +451,7 @@
       var m = e.p || e.c || e.f ? "P " + fmt(e.p) + " · C " + fmt(e.c) + " · F " + fmt(e.f) : "";
       return '<div class="row"><div class="t"><b>' + esc(e.name || "Food") + "</b>" + (m ? "<small>" + m + "</small>" : "") + '</div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delfood" data-i="' + i + '" aria-label="Remove">×</button></div>';
     }).join("") + "</div>" : '<p class="empty">Nothing logged yet. Add meals as you go, or one total at the end of the day.</p>';
+    h += scanBlock();
     h += '<div class="stack"><label class="f">What (optional)<input id="fName" placeholder="e.g. Lunch, or Day total" value="' + esc(dv("fName", "")) + '"></label>'
       + '<div class="g4"><label class="f">Protein g<input id="fP" inputmode="decimal" value="' + esc(dv("fP", "")) + '"></label><label class="f">Carbs g<input id="fC" inputmode="decimal" value="' + esc(dv("fC", "")) + '"></label><label class="f">Fat g<input id="fF" inputmode="decimal" value="' + esc(dv("fF", "")) + '"></label><label class="f">Calories<input id="fK" inputmode="numeric" placeholder="' + (FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || "") + '" value="' + esc(dv("fK", "")) + '"></label></div>'
       + '<p class="hint">Leave calories blank and it works them out from the macros (4/4/9 per gram).</p>'
@@ -540,6 +566,27 @@
       changeDay(S.date, function (d) { d.food.push({ id: uid(), name: val("fName") || "Food", p: p, c: c, f: f, kcal: k, src: "manual" }); });
       clearDraft(["fName", "fP", "fC", "fF", "fK"]); renderMe();
     },
+    scan: function () {
+      window.FCScan.open(function (code) {
+        toast("Looking up " + code + "...");
+        window.FCScan.lookup(code).then(function (p) {
+          if (!p) { toast("Not in the food database yet. Type the label figures below."); return; }
+          if (p.noData) { if (p.name) S.draft.fName = p.name; toast("Found it, but no nutrition info is listed. Type the label figures below."); renderMe(); return; }
+          S.scan = p; delete S.draft.sG; renderMe();
+        }).catch(function (e) {
+          toast(e instanceof TypeError ? "Couldn't reach the food database. Check your connection." : e.message);
+        });
+      });
+    },
+    scanamt: function (b) { S.draft.sG = b.dataset.v; renderMe(); },
+    scanclear: function () { S.scan = null; delete S.draft.sG; renderMe(); },
+    scanadd: function () {
+      var p = S.scan; if (!p) return;
+      var g = num("sG"); if (!(g > 0)) return toast("Enter how much you had");
+      var r = scanCalc(p, g), u = p.liquid ? " ml" : " g";
+      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, src: "barcode", code: p.code }); });
+      S.scan = null; delete S.draft.sG; renderMe();
+    },
     delfood: function (b) { changeDay(S.date, function (d) { d.food.splice(+b.dataset.i, 1); }); },
     delex: function (b) { changeDay(S.date, function (d) { d.ex.splice(+b.dataset.i, 1); }); },
     diary: function () { pullDiary(S.date); },
@@ -645,6 +692,7 @@
   });
   document.addEventListener("input", function (e) {
     if (e.target.id) S.draft[e.target.id] = e.target.value;
+    if (e.target.id === "sG" && S.scan) { var sc = $("#sCalc"); if (sc) sc.innerHTML = scanCalcText(S.scan, parseFloat(String(e.target.value).replace(",", ".")) || 0); }
     if (/^f[PCF]$/.test(e.target.id)) { var k = $("#fK"); if (k) k.placeholder = FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || ""; }
   });
   document.addEventListener("change", function (e) {
