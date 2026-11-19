@@ -1,7 +1,7 @@
 // Offline support. Bump VERSION whenever app files change so phones pick up the update.
-const VERSION = "fc-2026-11-20a";
+const VERSION = "fc-2026-11-20b";
 const SHELL = ["index.html", "app.js", "logic.js", "config.js", "manifest.webmanifest",
-  "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png"];
+  "icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
