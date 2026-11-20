@@ -65,6 +65,7 @@
     crown: '<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
     camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+    gallery: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
     barcode: '<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>',
     share: '<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>'
   };
@@ -451,8 +452,9 @@
     } else {
       h += '<label class="f">Describe a meal or snap a photo<textarea id="mText" placeholder="e.g. 180 g chicken breast, 120 g cooked rice, 1 tbsp olive oil">' + esc(dv("mText", "")) + "</textarea></label>"
         + (S.mealImg ? '<div class="mealimg"><img src="' + S.mealImg + '" alt="Meal photo"><button class="x" data-act="mealnoimg" aria-label="Remove photo">×</button></div>' : "")
-        + '<div class="btns"><label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.camera + (S.mealImg ? "New photo" : "Photo") + '<input type="file" id="mPhoto" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
-        + '<button class="btn pri" style="flex:1" data-act="meal"' + (S.mealBusy ? " disabled" : "") + ">" + ICON.spark + (S.mealBusy ? "Asking Claude..." : "Estimate with Claude") + "</button></div>"
+        + '<div class="btns"><label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.camera + "Camera" + '<input type="file" id="mPhoto" accept="image/*" capture="environment" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
+        + '<label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.gallery + "Gallery" + '<input type="file" id="mPhotoLib" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label></div>"
+        + '<div class="btns"><button class="btn pri" style="flex:1" data-act="meal"' + (S.mealBusy ? " disabled" : "") + ">" + ICON.spark + (S.mealBusy ? "Asking Claude..." : "Estimate with Claude") + "</button></div>"
         + '<p class="hint">Weights give the best answer. Photos are a rough guess, so check before adding.</p>';
     }
     return h + "</div>";
@@ -766,7 +768,7 @@
     if (/^f[PCF]$/.test(e.target.id)) { var k = $("#fK"); if (k) k.placeholder = FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || ""; }
   });
   document.addEventListener("change", function (e) {
-    if (e.target.id === "mPhoto" && e.target.files && e.target.files[0]) {
+    if ((e.target.id === "mPhoto" || e.target.id === "mPhotoLib") && e.target.files && e.target.files[0]) {
       shrinkPhoto(e.target.files[0]).then(function (d) { S.mealImg = d; renderMe(); }, function (er) { toast(er.message); });
       return;
     }
