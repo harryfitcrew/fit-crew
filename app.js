@@ -64,6 +64,7 @@
     flame: '<svg viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.7 7-6.8 0-3.4-2.3-5.6-3.6-7.6-.4 1.6-1.3 2.7-2.4 3.2C13.4 7 12 4 9.5 2c.2 3.4-1.6 5.4-3.1 7.4A8.5 8.5 0 005 15.2C5 19.3 8 22 12 22z"/></svg>',
     crown: '<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+    camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
     barcode: '<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>',
     share: '<svg viewBox="0 0 24 24"><path d="M4 12v7a2 2 0 002 2h12a2 2 0 002-2v-7M16 6l-4-4-4 4M12 2v13"/></svg>'
   };
@@ -427,6 +428,51 @@
       + '<p class="hint">From Open Food Facts, a free database filled in by volunteers. Check it against the packet if it looks off.</p></div>';
   }
 
+  /* ---------- Meal estimate with Claude (photo and/or description) ---------- */
+  function mealTotals(items) {
+    var t = { kcal: 0, p: 0, c: 0, f: 0 };
+    (items || []).forEach(function (i) { t.kcal += +i.kcal || 0; t.p += +i.protein_g || 0; t.c += +i.carbs_g || 0; t.f += +i.fat_g || 0; });
+    t.kcal = Math.round(t.kcal); t.p = Math.round(t.p * 10) / 10; t.c = Math.round(t.c * 10) / 10; t.f = Math.round(t.f * 10) / 10;
+    return t;
+  }
+  function mealBlock() {
+    if (!S.claude) return "";
+    var r = S.meal, h = '<div class="meal">';
+    if (r) {
+      var t = mealTotals(r.items);
+      h += '<div class="sh"><div class="t"><b>' + esc(r.name) + '</b><small>Claude estimate · ' + esc(r.confidence) + " confidence</small></div>"
+        + '<button class="x" data-act="mealclear" aria-label="Discard">×</button></div>'
+        + '<div class="list">' + r.items.map(function (i) {
+          return '<div class="row"><div class="t"><b>' + esc(i.name) + "</b><small>" + fmt(i.grams) + " g · P " + fmt(i.protein_g) + " · C " + fmt(i.carbs_g) + " · F " + fmt(i.fat_g) + '</small></div><span class="k">' + fmt(i.kcal) + "</span></div>";
+        }).join("") + "</div>"
+        + (r.assumptions ? '<p class="hint">' + esc(r.assumptions) + "</p>" : "")
+        + '<div class="g2"><label class="f">Calories to log<input id="mK" inputmode="numeric" value="' + esc(String(dv("mK", t.kcal))) + '"></label><div style="display:flex;align-items:flex-end"><button class="btn pri wide" data-act="mealadd">Add to food</button></div></div>'
+        + '<p class="hint">Total ' + fmt(t.kcal) + " cal · P " + fmt(t.p) + " · C " + fmt(t.c) + " · F " + fmt(t.f) + ". Change the calories if it looks off and the macros scale with it.</p>";
+    } else {
+      h += '<label class="f">Describe a meal or snap a photo<textarea id="mText" placeholder="e.g. 180 g chicken breast, 120 g cooked rice, 1 tbsp olive oil">' + esc(dv("mText", "")) + "</textarea></label>"
+        + (S.mealImg ? '<div class="mealimg"><img src="' + S.mealImg + '" alt="Meal photo"><button class="x" data-act="mealnoimg" aria-label="Remove photo">×</button></div>' : "")
+        + '<div class="btns"><label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.camera + (S.mealImg ? "New photo" : "Photo") + '<input type="file" id="mPhoto" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
+        + '<button class="btn pri" style="flex:1" data-act="meal"' + (S.mealBusy ? " disabled" : "") + ">" + ICON.spark + (S.mealBusy ? "Asking Claude..." : "Estimate with Claude") + "</button></div>"
+        + '<p class="hint">Weights give the best answer. Photos are a rough guess, so check before adding.</p>';
+    }
+    return h + "</div>";
+  }
+  // Shrink the photo on the phone before sending: smaller upload, lower cost (about 1,200 image tokens).
+  function shrinkPhoto(file) {
+    return new Promise(function (ok, fail) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var max = 1024, w = img.naturalWidth, h = img.naturalHeight, k = Math.min(1, max / Math.max(w, h));
+        var cv = document.createElement("canvas"); cv.width = Math.round(w * k); cv.height = Math.round(h * k);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        ok(cv.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); fail(new Error("Couldn't read that photo")); };
+      img.src = url;
+    });
+  }
+
   function renderMe(fromSync) {
     var el = $("#me"); if (!el) return;
     if (fromSync && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return; // don't wipe typing
@@ -452,6 +498,7 @@
       return '<div class="row"><div class="t"><b>' + esc(e.name || "Food") + "</b>" + (m ? "<small>" + m + "</small>" : "") + '</div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delfood" data-i="' + i + '" aria-label="Remove">×</button></div>';
     }).join("") + "</div>" : '<p class="empty">Nothing logged yet. Add meals as you go, or one total at the end of the day.</p>';
     h += scanBlock();
+    h += mealBlock();
     h += '<div class="stack"><label class="f">What (optional)<input id="fName" placeholder="e.g. Lunch, or Day total" value="' + esc(dv("fName", "")) + '"></label>'
       + '<div class="g4"><label class="f">Protein g<input id="fP" inputmode="decimal" value="' + esc(dv("fP", "")) + '"></label><label class="f">Carbs g<input id="fC" inputmode="decimal" value="' + esc(dv("fC", "")) + '"></label><label class="f">Fat g<input id="fF" inputmode="decimal" value="' + esc(dv("fF", "")) + '"></label><label class="f">Calories<input id="fK" inputmode="numeric" placeholder="' + (FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || "") + '" value="' + esc(dv("fK", "")) + '"></label></div>'
       + '<p class="hint">Leave calories blank and it works them out from the macros (4/4/9 per gram).</p>'
@@ -578,6 +625,29 @@
         });
       });
     },
+    meal: function () {
+      var text = val("mText");
+      if (!text && !S.mealImg) return toast("Describe the meal or add a photo first");
+      S.mealBusy = true; renderMe();
+      call("meal", { userId: S.me, text: text, image: S.mealImg ? S.mealImg.split(",")[1] : "" })
+        .then(function (j) {
+          S.mealBusy = false;
+          if (!j.items.length) { toast(j.assumptions || "Claude couldn't find any food in that"); renderMe(); return; }
+          S.meal = { name: j.meal_name, items: j.items, confidence: j.confidence, assumptions: j.assumptions };
+          delete S.draft.mK; renderMe();
+        })
+        .catch(function (e) { S.mealBusy = false; renderMe(); toast(e.message === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : e.message); });
+    },
+    mealnoimg: function () { S.mealImg = null; renderMe(); },
+    mealclear: function () { S.meal = null; delete S.draft.mK; renderMe(); },
+    mealadd: function () {
+      var r = S.meal; if (!r) return;
+      var t = mealTotals(r.items), k = Math.round(num("mK"));
+      if (!(k > 0)) return toast("Enter the calories to log");
+      var m = t.kcal > 0 ? k / t.kcal : 1, r1 = function (x) { return Math.round(x * m * 10) / 10; };
+      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: r.name, p: r1(t.p), c: r1(t.c), f: r1(t.f), kcal: k, src: "claude", items: r.items.map(function (i) { return i.name + " " + Math.round(i.grams) + " g"; }).join(", ").slice(0, 300) }); });
+      S.meal = null; S.mealImg = null; clearDraft(["mK", "mText"]); renderMe();
+    },
     scanamt: function (b) { S.draft.sG = b.dataset.v; renderMe(); },
     scanclear: function () { S.scan = null; delete S.draft.sG; renderMe(); },
     scanadd: function () {
@@ -696,6 +766,10 @@
     if (/^f[PCF]$/.test(e.target.id)) { var k = $("#fK"); if (k) k.placeholder = FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || ""; }
   });
   document.addEventListener("change", function (e) {
+    if (e.target.id === "mPhoto" && e.target.files && e.target.files[0]) {
+      shrinkPhoto(e.target.files[0]).then(function (d) { S.mealImg = d; renderMe(); }, function (er) { toast(er.message); });
+      return;
+    }
     if (e.target.dataset && e.target.dataset.act === "diaryauto") { lsSet(LS.diary, e.target.checked ? "1" : ""); if (e.target.checked) autoDiary(); }
     else if (e.target.tagName === "SELECT" && e.target.id) S.draft[e.target.id] = e.target.value;
   });

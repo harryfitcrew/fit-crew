@@ -1,10 +1,11 @@
 // Offline support. Bump VERSION whenever app files change so phones pick up the update.
-const VERSION = "fc-2026-11-20c";
+// Files are fetched past the browser's HTTP cache (GitHub Pages caches for 10 min), so a new version gets new files.
+const VERSION = "fc-2026-11-20e";
 const SHELL = ["index.html", "app.js", "scan.js", "logic.js", "config.js", "manifest.webmanifest",
   "icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys()
@@ -21,7 +22,7 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(caches.open(VERSION).then(async (cache) => {
       const key = req.mode === "navigate" ? "index.html" : req;
       const hit = await cache.match(key, { ignoreSearch: true });
-      const net = fetch(req).then((res) => { if (res.ok) cache.put(key, res.clone()); return res; }).catch(() => hit);
+      const net = fetch(req, { cache: "no-cache" }).then((res) => { if (res.ok) cache.put(key, res.clone()); return res; }).catch(() => hit);
       return hit || net;
     }));
     return;
