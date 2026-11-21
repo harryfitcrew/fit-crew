@@ -1,7 +1,7 @@
 // Offline support. Bump VERSION whenever app files change so phones pick up the update.
 // Files are fetched past the browser's HTTP cache (GitHub Pages caches for 10 min), so a new version gets new files.
-const VERSION = "fc-2026-11-20f";
-const SHELL = ["index.html", "app.js", "scan.js", "logic.js", "config.js", "manifest.webmanifest",
+const VERSION = "fc-2026-11-21a";
+const SHELL = ["index.html", "app.js", "scan.js", "exercises.js", "train.js", "logic.js", "config.js", "manifest.webmanifest",
   "icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

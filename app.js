@@ -64,6 +64,8 @@
     flame: '<svg viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.7 7-6.8 0-3.4-2.3-5.6-3.6-7.6-.4 1.6-1.3 2.7-2.4 3.2C13.4 7 12 4 9.5 2c.2 3.4-1.6 5.4-3.1 7.4A8.5 8.5 0 005 15.2C5 19.3 8 22 12 22z"/></svg>',
     crown: '<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>',
     camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
     gallery: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg>',
     barcode: '<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg>',
@@ -363,6 +365,7 @@
       var pts = w.start ? [[u.joined || (w.points[0] && w.points[0][0]) || t, 0]].concat(w.points.filter(function (p) { return p[0] >= (u.joined || ""); }).map(function (p) { return [p[0], (p[1] - w.start) / w.start * 100]; })) : [];
       return { color: u.color, name: u.name, pts: pts };
     });
+    if (window.FCTrain) h += FCTrain.crewHtml();
     h += '<div class="card"><h2>Weight race <small>% change from start</small></h2><div class="chart">'
       + lineChart(series, { zero: true, label: "Weight change by person", fmt: function (v) { return signed(v, 1) + "%"; }, minPad: 0.6, empty: "Weigh-ins will show here." })
       + '</div><div class="keyrow">' + users().map(function (u) { return '<span><i style="background:' + esc(u.color) + '"></i>' + esc(u.name) + "</span>"; }).join("") + "</div></div>";
@@ -385,6 +388,7 @@
       + ((day.ex || []).length ? '<div class="list" style="margin:12px 0 0">' + day.ex.map(function (e) { return '<div class="row"><div class="t"><b>' + esc(e.name) + "</b>" + (e.note ? "<small>" + esc(e.note) + "</small>" : "") + '</div><span class="k">' + fmt(e.kcal) + "</span></div>"; }).join("") + "</div>" : "")
       + "</div>";
     h += '<div class="stats"><div class="stat"><span>Streak</span><b>' + st + ' d</b></div><div class="stat"><span>Week pts</span><b>' + wk.points + '</b></div><div class="stat"><span>Workouts</span><b>' + wk.workouts + "</b></div></div>";
+    if (window.FCTrain) h += FCTrain.profileHtml(u);
     h += '<div class="card"><h2>Weight</h2><div class="stats"><div class="stat"><span>Start</span><b>' + (w.start ? kg(w.start) : "–") + '</b></div><div class="stat"><span>Now</span><b>' + (w.current ? kg(w.current) : "–") + '</b></div><div class="stat"><span>Change</span><b class="' + (w.progress > 0 ? "good" : w.progress < 0 ? "bad" : "") + '">' + (w.start ? signed(w.change, 1) : "–") + "</b></div></div>"
       + '<div class="chart">' + lineChart([{ color: u.color, pts: weightPts(u) }], { label: "Weight over time", target: w.target || 0, extra: w.target ? [w.target] : [], empty: "No weigh-ins yet." }) + "</div>"
       + '<p class="hint" style="margin-top:8px">' + (w.target ? "Target " + kg(w.target) + " kg, " + kg(Math.abs(w.toGo)) + " kg to go. " : "") + (bmi ? "BMI " + bmi.toFixed(1) + "." : "") + "</p></div>";
@@ -427,6 +431,121 @@
       + '<p class="hint" id="sCalc">' + scanCalcText(p, g) + "</p>"
       + '<button class="btn pri wide" data-act="scanadd">Add to food</button>'
       + '<p class="hint">From Open Food Facts, a free database filled in by volunteers. Check it against the packet if it looks off.</p></div>';
+  }
+
+  /* ---------- Editing logged entries ---------- */
+  function editForm(kind, e, i) {
+    var food = kind === "food";
+    var h = '<div class="edit"><label class="f">Name<input id="edN" value="' + esc(dv("edN", e.name || "")) + '"></label>';
+    if (food) h += '<div class="g4"><label class="f">Protein g<input id="edP" inputmode="decimal" value="' + esc(dv("edP", e.p || "")) + '"></label><label class="f">Carbs g<input id="edC" inputmode="decimal" value="' + esc(dv("edC", e.c || "")) + '"></label><label class="f">Fat g<input id="edF" inputmode="decimal" value="' + esc(dv("edF", e.f || "")) + '"></label><label class="f">Calories<input id="edK" inputmode="numeric" value="' + esc(dv("edK", e.kcal || "")) + '"></label></div>';
+    else h += '<label class="f">Calories burned<input id="edK" inputmode="numeric" value="' + esc(dv("edK", e.kcal || "")) + '"></label>';
+    var saved = isSaved(kind, e.name);
+    return h + '<div class="btns"><button class="btn pri" style="flex:1" data-act="editsave">Save</button><button class="btn" data-act="favadd" data-k="' + kind + '" data-i="' + i + '"' + (saved ? " disabled" : "") + ">" + ICON.star + (saved ? "Saved" : "Save for later") + '</button><button class="btn ghost" data-act="editcancel">Cancel</button></div></div>';
+  }
+
+  /* ---------- Saved and recent foods / workouts ---------- */
+  function savedList(kind, u) { return ((u && u.saved) || {})[kind] || []; }
+  function isSaved(kind, name) { var n = String(name || "").toLowerCase(); return savedList(kind, me()).some(function (x) { return x.name.toLowerCase() === n; }); }
+  function recentFoods(u) {
+    var seen = {}, out = [], todayNames = {};
+    ((getDay(u.id, S.date) || {}).food || []).forEach(function (e) { todayNames[(e.name || "").toLowerCase()] = 1; });
+    savedList("food", u).forEach(function (x) { seen[x.name.toLowerCase()] = 1; });
+    for (var i = 1; i <= 21 && out.length < 6; i++) {
+      var day = getDay(u.id, FC.addDays(S.date, -i)); if (!day || !day.food) continue;
+      day.food.slice().reverse().forEach(function (e) {
+        var n = (e.name || "").toLowerCase();
+        if (!e.kcal || !n || n === "food" || n === "day total" || e.src === "diary" || seen[n] || todayNames[n] || out.length >= 6) return;
+        seen[n] = 1; out.push({ name: e.name, kcal: e.kcal, p: e.p || 0, c: e.c || 0, f: e.f || 0 });
+      });
+    }
+    return out;
+  }
+  function quickChips(kind, u) {
+    var sv = savedList(kind, u), rc = kind === "food" ? recentFoods(u) : [], ed = S.favEdit === kind;
+    if (!sv.length && !rc.length) return "";
+    var chip = function (x, i, src) {
+      return '<button class="chip q" data-act="' + (ed && src === "s" ? "favdel" : "quick") + '" data-k="' + kind + '" data-src="' + src + '" data-i="' + i + '">' + esc(x.name) + " <span>" + fmt(x.kcal) + "</span>" + (ed && src === "s" ? " ×" : "") + "</button>";
+    };
+    var h = '<div class="quick">';
+    if (sv.length) h += '<div class="qh"><span>Saved' + (kind === "ex" ? " workouts" : "") + '</span><button class="lnk" data-act="favedit" data-k="' + kind + '">' + (ed ? "Done" : "Edit") + "</button></div>"
+      + '<div class="chips">' + sv.map(function (x, i) { return chip(x, i, "s"); }).join("") + "</div>";
+    if (rc.length && !ed) h += '<div class="qh"><span>Recent</span></div><div class="chips">' + rc.map(function (x, i) { return chip(x, i, "r"); }).join("") + "</div>";
+    return h + '<p class="hint">' + (ed ? "Tap one to remove it." : "Tap to add. To save something, tap it in the list and choose Save for later.") + "</p></div>";
+  }
+
+  /* ---------- Free food ideas (built-in list, no Claude) ----------
+   * Typical NZ serves, values from USDA / NZ FOODfiles (rounded). */
+  var IDEAS = [
+    ["Chicken breast, cooked", "150 g", 248, 46.5, 0, 5.4],
+    ["Tuna in springwater", "95 g can", 95, 21, 0, 1],
+    ["Greek yoghurt, unsweetened low fat", "170 g", 100, 17, 6, 0.7],
+    ["Cottage cheese, low fat", "125 g", 90, 15.5, 3.4, 1.3],
+    ["Egg whites", "150 g (about 5)", 78, 16, 1, 0.3],
+    ["Eggs, boiled", "2 large", 155, 12.6, 1.1, 10.6],
+    ["Whey protein shake with water", "1 scoop (30 g)", 120, 24, 3, 1.5],
+    ["Lean beef mince (5% fat), cooked", "150 g", 246, 38.4, 0, 9.6],
+    ["Salmon, cooked", "120 g", 247, 26.4, 0, 14.9],
+    ["Firm tofu", "150 g", 216, 26, 4.2, 13],
+    ["Trim milk", "250 ml", 85, 8.5, 12.5, 0.2],
+    ["Protein bar", "1 bar (60 g)", 220, 20, 20, 7],
+    ["Edamame, shelled", "100 g", 121, 11.9, 8.9, 5.2],
+    ["Banana", "1 medium", 105, 1.3, 27, 0.4],
+    ["Apple", "1 medium", 95, 0.5, 25, 0.3],
+    ["White rice, cooked", "150 g", 195, 4, 42, 0.4],
+    ["Kumara, cooked", "150 g", 135, 3, 31, 0.2],
+    ["Weet-Bix with trim milk", "2 biscuits + 150 ml", 168, 9, 29.6, 0.6],
+    ["Wholemeal bread", "2 slices", 176, 8.7, 30, 2.5],
+    ["Peanut butter", "2 tbsp (32 g)", 190, 7, 7, 16],
+    ["Almonds", "30 g", 174, 6.4, 6.5, 15],
+    ["Oats with full-fat milk", "80 g + 300 ml", 486, 20, 68, 15],
+    ["Avocado", "half", 120, 1.5, 6.4, 11],
+    ["Trail mix", "50 g", 231, 6.9, 22.5, 14.7],
+    ["Cheddar cheese", "30 g", 121, 7.5, 0.4, 9.9]
+  ].map(function (r, i) { return { i: i, name: r[0], serve: r[1], kcal: r[2], p: r[3], c: r[4], f: r[5] }; });
+
+  // Same picks all day, different mix each day
+  function rotate(list) { var n = list.length; if (n < 2) return list; var k = Math.floor(Date.now() / 864e5) % n; return list.slice(k).concat(list.slice(0, k)); }
+  function pickIdeas(u, a, ft) {
+    var st = u.status || "maintain", pg = +u.proteinGoal || 0;
+    var kLeft = Math.round(a.goal - a.net), pLeft = pg ? Math.round(pg - ft.p) : 0;
+    var lean = function (x) { return x.p / x.kcal; };
+    var fits = function (x) { return st === "bulk" || x.kcal <= Math.max(kLeft, 0) + 20; };
+    var r = { kLeft: kLeft, pLeft: pLeft, list: [], msg: "" };
+    if (st !== "bulk" && kLeft < 0) {
+      var walk = FC.exerciseCal(FC.walkMET(5.5, 0), 30, bodyOf(u));
+      r.msg = fmt(-kLeft) + " cal over today, so nothing more to eat. A 30 minute brisk walk burns about " + fmt(walk) + " cal if you want to claw some back.";
+      return r;
+    }
+    if (pg && pLeft >= 10) {
+      var opts = IDEAS.filter(function (x) { return x.p >= 8 && fits(x); }).sort(function (x, y) { return lean(y) - lean(x); });
+      if (st === "bulk") opts = IDEAS.filter(function (x) { return x.p >= 8; }).sort(function (x, y) { return y.p - x.p; });
+      r.list = rotate(opts.slice(0, 6)).slice(0, 3);
+      r.msg = st === "bulk" ? pLeft + " g protein to go. These pack the most protein:"
+        : kLeft < 250 ? pLeft + " g protein to go but only " + fmt(kLeft) + " cal left. These give the most protein for the fewest calories:"
+        : pLeft + " g protein and " + fmt(kLeft) + " cal to go. Lean protein first:";
+      if (!r.list.length) r.msg = pLeft + " g protein short, but there isn't room for more food today. Front-load protein tomorrow.";
+      return r;
+    }
+    if (st === "bulk" && kLeft > 150) {
+      r.list = IDEAS.filter(function (x) { return x.kcal >= 170; }).sort(function (x, y) { return y.kcal / 100 + y.p / 10 - (x.kcal / 100 + x.p / 10); }).slice(0, 3);
+      r.msg = fmt(kLeft) + " cal still to eat" + (pg ? " (protein's done)" : "") + ". Easy calorie-dense options:";
+      return r;
+    }
+    if (kLeft > 150) {
+      r.list = IDEAS.filter(function (x) { return x.kcal <= kLeft && x.c >= 20 && x.p < 12; }).sort(function (x, y) { return x.kcal - y.kcal; }).slice(0, 3);
+      r.msg = (pg ? "Protein's done. " : "") + fmt(kLeft) + " cal left. Fill it with carbs for training and recovery:";
+      return r;
+    }
+    r.msg = pg ? "Protein and calories are both on target. Nothing needed." : "Right on your calories. Set a protein goal under Goals to get protein tips.";
+    return r;
+  }
+  function ideasCard(u, a, ft) {
+    var r = pickIdeas(u, a, ft);
+    var h = '<div class="card"><h2>Ideas <small>' + (r.pLeft > 0 ? r.pLeft + " g protein · " : "") + (r.kLeft >= 0 ? fmt(r.kLeft) + " cal left" : fmt(-r.kLeft) + " cal over") + "</small></h2><p class=\"hint\" style=\"margin-bottom:" + (r.list.length ? "10px" : "0") + '">' + esc(r.msg) + "</p>";
+    if (r.list.length) h += '<div class="list" style="margin:0">' + r.list.map(function (x) {
+      return '<div class="row"><div class="t"><b>' + esc(x.name) + "</b><small>" + esc(x.serve) + " · " + fmt(x.kcal) + " cal · " + fmt(x.p) + ' g protein</small></div><button class="btn ghost" style="padding:6px 12px" data-act="ideaadd" data-i="' + x.i + '">Add</button></div>';
+    }).join("") + "</div>";
+    return h + "</div>";
   }
 
   /* ---------- Meal estimate with Claude (photo and/or description) ---------- */
@@ -496,9 +615,11 @@
         + '<label class="toggle" style="margin:-4px 0 12px"><input type="checkbox" data-act="diaryauto"' + (lsGet(LS.diary, "") === "1" ? " checked" : "") + "> Keep today and weigh-ins synced from Calorie Diary</label>";
     }
     h += food.length ? '<div class="list">' + food.map(function (e, i) {
+      if (S.edit && S.edit.kind === "food" && S.edit.i === i) return editForm("food", e, i);
       var m = e.p || e.c || e.f ? "P " + fmt(e.p) + " · C " + fmt(e.c) + " · F " + fmt(e.f) : "";
-      return '<div class="row"><div class="t"><b>' + esc(e.name || "Food") + "</b>" + (m ? "<small>" + m + "</small>" : "") + '</div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delfood" data-i="' + i + '" aria-label="Remove">×</button></div>';
+      return '<div class="row"><div class="t tap" data-act="edit" data-k="food" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name || "Food") + "</b>" + (m ? "<small>" + m + "</small>" : "<small>Tap to edit</small>") + '</div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delfood" data-i="' + i + '" aria-label="Remove">×</button></div>';
     }).join("") + "</div>" : '<p class="empty">Nothing logged yet. Add meals as you go, or one total at the end of the day.</p>';
+    h += quickChips("food", u);
     h += scanBlock();
     h += mealBlock();
     h += '<div class="stack"><label class="f">What (optional)<input id="fName" placeholder="e.g. Lunch, or Day total" value="' + esc(dv("fName", "")) + '"></label>'
@@ -506,12 +627,16 @@
       + '<p class="hint">Leave calories blank and it works them out from the macros (4/4/9 per gram).</p>'
       + '<button class="btn pri wide" data-act="addfood">Add food</button></div></div>';
 
+    if (d === t) h += ideasCard(u, a, ft);
+
     // Exercise
     var ex = day.ex || [];
     h += '<div class="card"><h2>Exercise <small>' + fmt(a.burned) + " cal burned</small></h2>";
     h += ex.length ? '<div class="list">' + ex.map(function (e, i) {
-      return '<div class="row"><div class="t"><b>' + esc(e.name) + "</b><small>" + esc(e.note || (e.src === "manual" ? "Entered by hand" : "")) + '</small></div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delex" data-i="' + i + '" aria-label="Remove">×</button></div>';
+      if (S.edit && S.edit.kind === "ex" && S.edit.i === i) return editForm("ex", e, i);
+      return '<div class="row"><div class="t tap" data-act="edit" data-k="ex" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name) + "</b><small>" + esc(e.note || (e.src === "manual" ? "Entered by hand" : "Tap to edit")) + '</small></div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delex" data-i="' + i + '" aria-label="Remove">×</button></div>';
     }).join("") + "</div>" : '<p class="empty">No workouts logged.</p>';
+    h += quickChips("ex", u);
     h += '<div class="stack"><label class="f">Describe it<textarea id="eText" placeholder="e.g. 45 min incline walk at 8% and 5.5 km/h">' + esc(dv("eText", "")) + "</textarea></label>";
     if (S.est) {
       var tot = 0;
@@ -589,6 +714,7 @@
     if (renderGate()) return;
     renderCrew();
     renderMe(fromSync);
+    if (window.FCTrain) FCTrain.render(fromSync);
     if (S.sheet) renderProfile(S.sheet);
   }
 
@@ -608,7 +734,7 @@
       if (on) { celebrate(b); toast("High five sent to " + (user(to) || {}).name); }
       render();
     },
-    day: function (b) { var n = FC.addDays(S.date, +b.dataset.v); if (n <= today()) { S.date = n; S.est = null; clearDraft(["wKg", "eK"]); renderMe(); } },
+    day: function (b) { var n = FC.addDays(S.date, +b.dataset.v); if (n <= today()) { S.date = n; S.est = null; S.edit = null; clearDraft(["wKg", "eK"]); renderMe(); } },
     addfood: function () {
       var p = num("fP"), c = num("fC"), f = num("fF"), k = Math.round(num("fK")) || FC.macroCal(p, c, f);
       if (!k) return toast("Enter calories or macros");
@@ -659,8 +785,48 @@
       changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, src: "barcode", code: p.code }); });
       S.scan = null; delete S.draft.sG; renderMe();
     },
-    delfood: function (b) { changeDay(S.date, function (d) { d.food.splice(+b.dataset.i, 1); }); },
-    delex: function (b) { changeDay(S.date, function (d) { d.ex.splice(+b.dataset.i, 1); }); },
+    edit: function (b) {
+      var k = b.dataset.k, i = +b.dataset.i, e = ((getDay(S.me, S.date) || {})[k] || [])[i]; if (!e) return;
+      S.edit = { kind: k, i: i, id: e.id }; clearDraft(["edN", "edP", "edC", "edF", "edK"]); renderMe();
+      var el = $("#edN"); if (el) el.focus();
+    },
+    editcancel: function () { S.edit = null; renderMe(); },
+    editsave: function () {
+      var ed = S.edit; if (!ed) return;
+      var name = val("edN"), k = Math.round(num("edK"));
+      if (ed.kind === "food") {
+        var p = num("edP"), c = num("edC"), f = num("edF");
+        if (!val("edK")) k = FC.macroCal(p, c, f);
+        if (!(k > 0)) return toast("Enter calories or macros");
+        changeDay(S.date, function (d) { var e = d.food.filter(function (x) { return x.id === ed.id; })[0] || d.food[ed.i]; if (!e) return; e.name = name || "Food"; e.p = p; e.c = c; e.f = f; e.kcal = k; e.edited = 1; });
+      } else {
+        if (!(k > 0)) return toast("Enter the calories");
+        changeDay(S.date, function (d) { var e = d.ex.filter(function (x) { return x.id === ed.id; })[0] || d.ex[ed.i]; if (!e) return; e.name = name || "Workout"; e.kcal = k; e.edited = 1; });
+      }
+      S.edit = null; clearDraft(["edN", "edP", "edC", "edF", "edK"]); renderMe();
+    },
+    favadd: function (b) {
+      var k = b.dataset.k, e = ((getDay(S.me, S.date) || {})[k] || [])[+b.dataset.i]; if (!e) return;
+      var name = val("edN") || e.name, kc = Math.round(num("edK")) || e.kcal;
+      var item = k === "food" ? { name: name, kcal: kc, p: num("edP"), c: num("edC"), f: num("edF") } : { name: name, kcal: kc, note: e.note || "" };
+      changeMe(function (u) { u.saved = u.saved || {}; var l = u.saved[k] = (u.saved[k] || []).filter(function (x) { return x.name.toLowerCase() !== name.toLowerCase(); }); l.unshift(item); if (l.length > 40) l.length = 40; });
+      toast("Saved. It's in your " + (k === "food" ? "saved foods" : "saved workouts") + " now.");
+    },
+    favedit: function (b) { S.favEdit = S.favEdit === b.dataset.k ? null : b.dataset.k; renderMe(); },
+    favdel: function (b) { var k = b.dataset.k, i = +b.dataset.i; changeMe(function (u) { (u.saved[k] || []).splice(i, 1); }); },
+    quick: function (b) {
+      var k = b.dataset.k, u = me(), x = (b.dataset.src === "s" ? savedList(k, u) : recentFoods(u))[+b.dataset.i]; if (!x) return;
+      if (k === "food") changeDay(S.date, function (d) { d.food.push({ id: uid(), name: x.name, p: x.p || 0, c: x.c || 0, f: x.f || 0, kcal: x.kcal, src: "saved" }); });
+      else { changeDay(S.date, function (d) { d.ex.push({ id: uid(), name: x.name, kcal: x.kcal, note: x.note || "Saved workout", src: "saved" }); }); celebrate(b); }
+      toast("Added " + x.name);
+    },
+    ideaadd: function (b) {
+      var x = IDEAS[+b.dataset.i]; if (!x) return;
+      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: x.name + " (" + x.serve + ")", p: x.p, c: x.c, f: x.f, kcal: x.kcal, src: "idea" }); });
+      toast("Added " + x.name);
+    },
+    delfood: function (b) { S.edit = null; changeDay(S.date, function (d) { d.food.splice(+b.dataset.i, 1); }); },
+    delex: function (b) { S.edit = null; changeDay(S.date, function (d) { var e = d.ex.splice(+b.dataset.i, 1)[0]; if (e && e.lift && d.lifts) d.lifts = d.lifts.filter(function (l) { return l.id !== e.lift; }); }); },
     diary: function () { pullDiary(S.date); },
     estimate: function (b) {
       var text = val("eText"); if (!text) return toast("Describe the workout first");
@@ -816,6 +982,10 @@
       if (t < 1600) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
     })(start);
   }
+
+  /* ---------- Workout tracker (train.js) ---------- */
+  if (window.FCTrain) FCTrain.init({ S: S, FC: FC, me: me, user: user, getDay: getDay, changeDay: changeDay, changeMe: changeMe, toast: toast, celebrate: celebrate,
+    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON });
 
   /* ---------- Start ---------- */
   (function readHash() {
