@@ -23,7 +23,8 @@
     syncing: false,
     err: "",
     lastSync: 0,
-    sheet: null
+    sheet: null,
+    info: {}
   };
 
   /* ---------- Small helpers ---------- */
@@ -64,6 +65,24 @@
     flame: '<svg viewBox="0 0 24 24"><path d="M12 22c4 0 7-2.7 7-6.8 0-3.4-2.3-5.6-3.6-7.6-.4 1.6-1.3 2.7-2.4 3.2C13.4 7 12 4 9.5 2c.2 3.4-1.6 5.4-3.1 7.4A8.5 8.5 0 005 15.2C5 19.3 8 22 12 22z"/></svg>',
     crown: '<svg viewBox="0 0 24 24"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>',
     spark: '<svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+    utensils: '<svg viewBox="0 0 24 24"><path d="M7 3v8a2 2 0 002 2v8M11 3v8a2 2 0 01-2 2M7 3v5M11 3v5M17 21V3c-2 1-3 3.5-3 7v3h3"/></svg>',
+    bulb: '<svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.6 10.8c.7.5 1.1 1.3 1.1 2.2h5c0-.9.4-1.7 1.1-2.2A6 6 0 0012 3z"/></svg>',
+    scale: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8.5 9.5a5 5 0 017 0M12 9.5l1.5-2"/></svg>',
+    target: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+    user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14.5a6.5 6.5 0 013.5 5.5"/></svg>',
+    info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>',
+    dumbbell: '<svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24"><path d="M8 4h8v5a4 4 0 01-8 0V4zM8 6H5a3 3 0 003 4M16 6h3a3 3 0 01-3 4M12 13v4M8.5 20h7M10 17h4"/></svg>',
+    watch: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3"/><path d="M9 6l1-3h4l1 3M9 18l1 3h4l1-3M12 9.5V12l1.5 1"/></svg>',
+    cal: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+    chart: '<svg viewBox="0 0 24 24"><path d="M4 19h16M7 15l4-5 3 3 5-7"/></svg>',
+    body: '<svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M7 9l5 1 5-1M9.5 21l2.5-7 2.5 7"/></svg>',
+    hist: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
+    list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    check2: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    equals: '<svg viewBox="0 0 24 24"><path d="M6 9h12M6 15h12"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
     star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></svg>',
     camera: '<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
@@ -347,7 +366,7 @@
 
     // Week grid
     var ws = FC.weekStart(t), days = []; for (var i = 0; i < 7; i++) days.push(FC.addDays(ws, i));
-    h += '<div class="card"><h2>This week <small>Mon to Sun</small></h2><table class="wk"><tr><th></th>'
+    h += '<div class="card">' + head("cal", "This week", "Mon to Sun") + '<table class="wk"><tr><th></th>'
       + days.map(function (d) { return "<th>" + "MTWTFSS".charAt(days.indexOf(d)) + "</th>"; }).join("") + "</tr>";
     users().forEach(function (u) {
       h += "<tr><td>" + esc(u.name) + "</td>" + days.map(function (d) {
@@ -366,7 +385,7 @@
       return { color: u.color, name: u.name, pts: pts };
     });
     if (window.FCTrain) h += FCTrain.crewHtml();
-    h += '<div class="card"><h2>Weight race <small>% change from start</small></h2><div class="chart">'
+    h += '<div class="card">' + head("chart", "Weight race", "% change from start") + '<div class="chart">'
       + lineChart(series, { zero: true, label: "Weight change by person", fmt: function (v) { return signed(v, 1) + "%"; }, minPad: 0.6, empty: "Weigh-ins will show here." })
       + '</div><div class="keyrow">' + users().map(function (u) { return '<span><i style="background:' + esc(u.color) + '"></i>' + esc(u.name) + "</span>"; }).join("") + "</div></div>";
     el.innerHTML = h;
@@ -389,10 +408,10 @@
       + "</div>";
     h += '<div class="stats"><div class="stat"><span>Streak</span><b>' + st + ' d</b></div><div class="stat"><span>Week pts</span><b>' + wk.points + '</b></div><div class="stat"><span>Workouts</span><b>' + wk.workouts + "</b></div></div>";
     if (window.FCTrain) h += FCTrain.profileHtml(u);
-    h += '<div class="card"><h2>Weight</h2><div class="stats"><div class="stat"><span>Start</span><b>' + (w.start ? kg(w.start) : "–") + '</b></div><div class="stat"><span>Now</span><b>' + (w.current ? kg(w.current) : "–") + '</b></div><div class="stat"><span>Change</span><b class="' + (w.progress > 0 ? "good" : w.progress < 0 ? "bad" : "") + '">' + (w.start ? signed(w.change, 1) : "–") + "</b></div></div>"
+    h += '<div class="card">' + head("scale", "Weight") + '<div class="stats"><div class="stat"><span>Start</span><b>' + (w.start ? kg(w.start) : "–") + '</b></div><div class="stat"><span>Now</span><b>' + (w.current ? kg(w.current) : "–") + '</b></div><div class="stat"><span>Change</span><b class="' + (w.progress > 0 ? "good" : w.progress < 0 ? "bad" : "") + '">' + (w.start ? signed(w.change, 1) : "–") + "</b></div></div>"
       + '<div class="chart">' + lineChart([{ color: u.color, pts: weightPts(u) }], { label: "Weight over time", target: w.target || 0, extra: w.target ? [w.target] : [], empty: "No weigh-ins yet." }) + "</div>"
       + '<p class="hint" style="margin-top:8px">' + (w.target ? "Target " + kg(w.target) + " kg, " + kg(Math.abs(w.toGo)) + " kg to go. " : "") + (bmi ? "BMI " + bmi.toFixed(1) + "." : "") + "</p></div>";
-    h += '<div class="card"><h2>Last 14 days <small>eaten vs goal</small></h2><div class="chart">' + barChart(u, days14) + '</div><div class="legend"><span><i class="dot good"></i>On track</span><span><i class="dot bad"></i>Off track</span><span><i style="width:11px;height:4px;background:var(--accent-2);border-radius:2px;display:inline-block"></i>Burned</span></div></div>';
+    h += '<div class="card">' + head("chart", "Last 14 days", "eaten vs goal") + '<div class="chart">' + barChart(u, days14) + '</div><div class="legend"><span><i class="dot good"></i>On track</span><span><i class="dot bad"></i>Off track</span><span><i style="width:11px;height:4px;background:var(--accent-2);border-radius:2px;display:inline-block"></i>Burned</span></div></div>';
     $("#panel").innerHTML = h;
   }
   function weightPts(u) {
@@ -406,6 +425,41 @@
   }
   function openSheet(id) { S.sheet = id; renderProfile(id); $("#sheet").classList.add("open"); }
   function closeSheet() { S.sheet = null; $("#sheet").classList.remove("open"); }
+
+  /* ---------- Shared look: card headings with an icon and an optional (i) for the explanations ---------- */
+  function head(ic, title, small, key) {
+    return "<h2>" + (ic ? '<span class="hic">' + ICON[ic] + "</span>" : "") + title + (small ? "<small>" + small + "</small>" : "")
+      + (key ? '<button class="info' + (S.info[key] ? " on" : "") + '" data-act="info" data-k="' + key + '" aria-label="Explain">' + ICON.info + "</button>" : "") + "</h2>";
+  }
+  function tip(key, html) { return S.info[key] ? '<p class="hint tip">' + html + "</p>" : ""; }
+  var MAC = { p: "var(--pro)", c: "var(--carb)", f: "var(--fat)" };
+  function macText(e) { return e.p || e.c || e.f ? '<small class="mac"><em class="p">' + fmt(e.p) + 'P</em><em class="c">' + fmt(e.c) + 'C</em><em class="f">' + fmt(e.f) + "F</em></small>" : ""; }
+  function macBar(p, c, f) { var t = p * 4 + c * 4 + f * 9; if (!t) return ""; return '<span class="mbar"><i style="flex:' + p * 4 + ";background:" + MAC.p + '"></i><i style="flex:' + c * 4 + ";background:" + MAC.c + '"></i><i style="flex:' + f * 9 + ";background:" + MAC.f + '"></i></span>'; }
+  var FOOD_IC = { barcode: "barcode", claude: "spark", saved: "star", idea: "bulb", diary: "cal" }, EX_IC = { tracker: "dumbbell", saved: "star", estimate: "spark", manual: "watch" };
+  function rowIcon(ic, cls) { return '<span class="ricon ' + (cls || "") + '">' + ICON[ic] + "</span>"; }
+
+  function summaryCard(u, a, ft) {
+    var size = 150, r = 62, c = 2 * Math.PI * r, p = a.goal ? Math.max(0, Math.min(1, a.net / a.goal)) : 0;
+    var col = a.state === "bad" ? "var(--bad)" : a.state === "good" ? "var(--good)" : a.state === "pending" ? "var(--warn)" : "var(--accent)";
+    var left = Math.round(a.goal - a.net), bulk = u.status === "bulk";
+    var mid = a.logged ? fmt(Math.abs(left)) : fmt(a.goal), lbl = !a.logged ? "cal to eat" : left >= 0 ? (bulk ? "cal to go" : "cal left") : (bulk ? "cal over goal" : "cal over");
+    var ringSvg = '<svg viewBox="0 0 ' + size + " " + size + '" class="bigring" role="img" aria-label="' + mid + " " + lbl + '"><circle cx="75" cy="75" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="12"/>'
+      + '<circle cx="75" cy="75" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="12" stroke-linecap="round" stroke-dasharray="' + (c * p).toFixed(1) + " " + c.toFixed(1) + '" transform="rotate(-90 75 75)"/></svg>';
+    var st = function (ic, cls, v, l) { return '<div class="ss"><span class="ssi ' + cls + '">' + ICON[ic] + "</span><div><b>" + v + "</b><small>" + l + "</small></div></div>"; };
+    return '<div class="card sum"><div class="sumtop"><div class="bring">' + ringSvg + '<div class="bmid"><b class="' + (left < 0 && !bulk ? "bad" : "") + '">' + mid + "</b><span>" + lbl + "</span></div></div>"
+      + '<div class="sstats">' + st("utensils", "eat", fmt(a.eaten), "eaten of " + fmt(a.goal)) + st("flame", "brn", fmt(a.burned), "burned") + st("equals", "net", fmt(a.net), "net") + "</div></div>"
+      + (a.state === "good" ? '<div class="okchip">' + ICON.check2 + "On track</div>" : a.logged ? '<div class="status ' + a.state + '">' + esc(a.msg) + "</div>" : "") + macroBlock(u, ft) + "</div>";
+  }
+  function macroBlock(u, ft) {
+    var pg = +u.proteinGoal || 0, kc = ft.p * 4 + ft.c * 4 + ft.f * 9, R = 34, C = 2 * Math.PI * R, off = 0;
+    var seg = function (v, col) { if (!kc || !v) return ""; var len = v / kc * C, s = '<circle cx="44" cy="44" r="' + R + '" fill="none" stroke="' + col + '" stroke-width="12" stroke-dasharray="' + len.toFixed(2) + " " + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 44 44)"/>'; off += len; return s; };
+    var donut = '<svg viewBox="0 0 88 88" class="donut"><circle cx="44" cy="44" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="12"/>' + seg(ft.p * 4, MAC.p) + seg(ft.c * 4, MAC.c) + seg(ft.f * 9, MAC.f) + "</svg>";
+    var row = function (k, name, g, goal) {
+      var pct = goal ? Math.min(100, g / goal * 100) : kc ? Math.round((k === "f" ? g * 9 : g * 4) / kc * 100) : 0;
+      return '<div class="mr"><span class="md" style="background:' + MAC[k] + '"></span><span class="mn">' + name + "</span><b>" + fmt(g) + 'g</b><span class="mx">' + (goal ? "/ " + goal + "g" : pct + "%") + '</span><div class="mb"><i style="width:' + (goal ? pct : pct) + "%;background:" + MAC[k] + '"></i></div></div>';
+    };
+    return '<div class="macblock">' + donut + '<div class="mrows">' + row("p", "Protein", ft.p, pg) + row("c", "Carbs", ft.c, 0) + row("f", "Fat", ft.f, 0) + "</div></div>";
+  }
 
   /* ---------- Me page ---------- */
   function dv(k, d) { return S.draft[k] != null ? S.draft[k] : d; }
@@ -430,7 +484,7 @@
       + '<button class="btn ghost" data-act="scanamt" data-v="100">100 ' + u + "</button></div></div>"
       + '<p class="hint" id="sCalc">' + scanCalcText(p, g) + "</p>"
       + '<button class="btn pri wide" data-act="scanadd">Add to food</button>'
-      + '<p class="hint">From Open Food Facts, a free database filled in by volunteers. Check it against the packet if it looks off.</p></div>';
+      + tip("food", "Barcode figures come from Open Food Facts, a free database filled in by volunteers. Check it against the packet if it looks off.") + "</div>";
   }
 
   /* ---------- Editing logged entries ---------- */
@@ -470,7 +524,7 @@
     if (sv.length) h += '<div class="qh"><span>Saved' + (kind === "ex" ? " workouts" : "") + '</span><button class="lnk" data-act="favedit" data-k="' + kind + '">' + (ed ? "Done" : "Edit") + "</button></div>"
       + '<div class="chips">' + sv.map(function (x, i) { return chip(x, i, "s"); }).join("") + "</div>";
     if (rc.length && !ed) h += '<div class="qh"><span>Recent</span></div><div class="chips">' + rc.map(function (x, i) { return chip(x, i, "r"); }).join("") + "</div>";
-    return h + '<p class="hint">' + (ed ? "Tap one to remove it." : "Tap to add. To save something, tap it in the list and choose Save for later.") + "</p></div>";
+    return h + (ed ? '<p class="hint">Tap one to remove it.</p>' : tip(kind === "food" ? "food" : "ex", "Tap a chip to add it. To save something, tap it in the list above and choose Save for later.")) + "</div>";
   }
 
   /* ---------- Free food ideas (built-in list, no Claude) ----------
@@ -520,20 +574,18 @@
       var opts = IDEAS.filter(function (x) { return x.p >= 8 && fits(x); }).sort(function (x, y) { return lean(y) - lean(x); });
       if (st === "bulk") opts = IDEAS.filter(function (x) { return x.p >= 8; }).sort(function (x, y) { return y.p - x.p; });
       r.list = rotate(opts.slice(0, 6)).slice(0, 3);
-      r.msg = st === "bulk" ? pLeft + " g protein to go. These pack the most protein:"
-        : kLeft < 250 ? pLeft + " g protein to go but only " + fmt(kLeft) + " cal left. These give the most protein for the fewest calories:"
-        : pLeft + " g protein and " + fmt(kLeft) + " cal to go. Lean protein first:";
+      r.msg = st === "bulk" ? "Protein-packed picks:" : kLeft < 250 ? "Calories are tight. Most protein for the fewest calories:" : "Lean protein first:";
       if (!r.list.length) r.msg = pLeft + " g protein short, but there isn't room for more food today. Front-load protein tomorrow.";
       return r;
     }
     if (st === "bulk" && kLeft > 150) {
       r.list = IDEAS.filter(function (x) { return x.kcal >= 170; }).sort(function (x, y) { return y.kcal / 100 + y.p / 10 - (x.kcal / 100 + x.p / 10); }).slice(0, 3);
-      r.msg = fmt(kLeft) + " cal still to eat" + (pg ? " (protein's done)" : "") + ". Easy calorie-dense options:";
+      r.msg = (pg ? "Protein's done. " : "") + "Easy calorie-dense options:";
       return r;
     }
     if (kLeft > 150) {
       r.list = IDEAS.filter(function (x) { return x.kcal <= kLeft && x.c >= 20 && x.p < 12; }).sort(function (x, y) { return x.kcal - y.kcal; }).slice(0, 3);
-      r.msg = (pg ? "Protein's done. " : "") + fmt(kLeft) + " cal left. Fill it with carbs for training and recovery:";
+      r.msg = (pg ? "Protein's done. " : "") + "Fill the rest with carbs for training:";
       return r;
     }
     r.msg = pg ? "Protein and calories are both on target. Nothing needed." : "Right on your calories. Set a protein goal under Goals to get protein tips.";
@@ -541,9 +593,9 @@
   }
   function ideasCard(u, a, ft) {
     var r = pickIdeas(u, a, ft);
-    var h = '<div class="card"><h2>Ideas <small>' + (r.pLeft > 0 ? r.pLeft + " g protein · " : "") + (r.kLeft >= 0 ? fmt(r.kLeft) + " cal left" : fmt(-r.kLeft) + " cal over") + "</small></h2><p class=\"hint\" style=\"margin-bottom:" + (r.list.length ? "10px" : "0") + '">' + esc(r.msg) + "</p>";
+    var h = '<div class="card">' + head("bulb", "Ideas", (r.pLeft > 0 ? r.pLeft + " g protein · " : "") + (r.kLeft >= 0 ? fmt(r.kLeft) + " cal left" : fmt(-r.kLeft) + " cal over")) + "<p class=\"hint\" style=\"margin-bottom:" + (r.list.length ? "10px" : "0") + '">' + esc(r.msg) + "</p>";
     if (r.list.length) h += '<div class="list" style="margin:0">' + r.list.map(function (x) {
-      return '<div class="row"><div class="t"><b>' + esc(x.name) + "</b><small>" + esc(x.serve) + " · " + fmt(x.kcal) + " cal · " + fmt(x.p) + ' g protein</small></div><button class="btn ghost" style="padding:6px 12px" data-act="ideaadd" data-i="' + x.i + '">Add</button></div>';
+      return '<div class="row">' + rowIcon("bulb", "idea") + '<div class="t"><b>' + esc(x.name) + "</b><small>" + esc(x.serve) + " · " + fmt(x.kcal) + ' cal</small></div><span class="ppill">' + fmt(x.p) + 'g P</span><button class="btn ghost sm" data-act="ideaadd" data-i="' + x.i + '" aria-label="Add ' + esc(x.name) + '">' + ICON.plus + "</button></div>";
     }).join("") + "</div>";
     return h + "</div>";
   }
@@ -567,14 +619,14 @@
         }).join("") + "</div>"
         + (r.assumptions ? '<p class="hint">' + esc(r.assumptions) + "</p>" : "")
         + '<div class="g2"><label class="f">Calories to log<input id="mK" inputmode="numeric" value="' + esc(String(dv("mK", t.kcal))) + '"></label><div style="display:flex;align-items:flex-end"><button class="btn pri wide" data-act="mealadd">Add to food</button></div></div>'
-        + '<p class="hint">Total ' + fmt(t.kcal) + " cal · P " + fmt(t.p) + " · C " + fmt(t.c) + " · F " + fmt(t.f) + ". Change the calories if it looks off and the macros scale with it.</p>";
+        + '<div class="mtot">' + macBar(t.p, t.c, t.f) + macText(t) + "</div>" + tip("food", "Change the calories if it looks off and the macros scale with it.");
     } else {
       h += '<label class="f">Describe a meal or snap a photo<textarea id="mText" placeholder="e.g. 180 g chicken breast, 120 g cooked rice, 1 tbsp olive oil">' + esc(dv("mText", "")) + "</textarea></label>"
         + (S.mealImg ? '<div class="mealimg"><img src="' + S.mealImg + '" alt="Meal photo"><button class="x" data-act="mealnoimg" aria-label="Remove photo">×</button></div>' : "")
         + '<div class="btns"><label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.camera + "Camera" + '<input type="file" id="mPhoto" accept="image/*" capture="environment" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
         + '<label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.gallery + "Gallery" + '<input type="file" id="mPhotoLib" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label></div>"
         + '<div class="btns"><button class="btn pri" style="flex:1" data-act="meal"' + (S.mealBusy ? " disabled" : "") + ">" + ICON.spark + (S.mealBusy ? "Asking Claude..." : "Estimate with Claude") + "</button></div>"
-        + '<p class="hint">Weights give the best answer. Photos are a rough guess, so check before adding.</p>';
+        + tip("food", "Weights give the best answer. Photos are a rough guess, so check before adding.");
     }
     return h + "</div>";
   }
@@ -603,12 +655,13 @@
     var h = '<div class="datebar"><button class="icon" data-act="day" data-v="-1" aria-label="Previous day">' + ICON.left + "</button><b>" + esc(dayLabel(d)) + '</b><button class="icon" data-act="day" data-v="1" aria-label="Next day"' + (d >= t ? " disabled" : "") + ">" + ICON.right + "</button></div>";
 
     // Summary: eaten on top, burned underneath
-    h += '<div class="card"><div class="summary">' + ring(a, 104) + '<div class="big"><span class="lbl">Calories eaten</span><span class="eat num">' + fmt(a.eaten) + '<span class="unit">/ ' + fmt(a.goal) + '</span></span><span class="lbl" style="margin-top:6px">Burned exercising</span><span class="brn num">' + fmt(a.burned) + '<span class="unit">cal</span></span></div></div>'
+    h += summaryCard(u, a, ft);
+    if (0) h += '<div class="card"><div class="summary">' + ring(a, 104) + '<div class="big"><span class="lbl">Calories eaten</span><span class="eat num">' + fmt(a.eaten) + '<span class="unit">/ ' + fmt(a.goal) + '</span></span><span class="lbl" style="margin-top:6px">Burned exercising</span><span class="brn num">' + fmt(a.burned) + '<span class="unit">cal</span></span></div></div>'
       + '<div class="status ' + a.state + '">' + esc(a.msg) + (a.logged ? " · net " + fmt(a.net) : "") + "</div>" + macroTiles(u, ft) + "</div>";
 
     // Food
     var food = day.food || [];
-    h += '<div class="card"><h2>Food <small>' + fmt(ft.kcal) + " cal</small></h2>";
+    h += '<div class="card">' + head("utensils", "Food", fmt(ft.kcal) + " cal", "food");
     if (hasDiary()) {
       var dd = readDiary(d) || { kcal: 0, items: 0 };
       h += '<div class="diary"><div class="t"><b>Calorie Diary</b><br><span class="muted">' + (dd.items ? fmt(dd.kcal) + " cal from " + dd.items + " items" : "Nothing logged there for this day") + '</span></div><button class="btn" data-act="diary"' + (dd.items ? "" : " disabled") + ">Pull</button></div>"
@@ -616,25 +669,25 @@
     }
     h += food.length ? '<div class="list">' + food.map(function (e, i) {
       if (S.edit && S.edit.kind === "food" && S.edit.i === i) return editForm("food", e, i);
-      var m = e.p || e.c || e.f ? "P " + fmt(e.p) + " · C " + fmt(e.c) + " · F " + fmt(e.f) : "";
-      return '<div class="row"><div class="t tap" data-act="edit" data-k="food" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name || "Food") + "</b>" + (m ? "<small>" + m + "</small>" : "<small>Tap to edit</small>") + '</div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delfood" data-i="' + i + '" aria-label="Remove">×</button></div>';
+      var m = macText(e);
+      return '<div class="row">' + rowIcon(FOOD_IC[e.src] || "utensils") + '<div class="t tap" data-act="edit" data-k="food" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name || "Food") + "</b>" + (m ? m + macBar(+e.p || 0, +e.c || 0, +e.f || 0) : "<small>Tap to edit</small>") + '</div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delfood" data-i="' + i + '" aria-label="Remove">×</button></div>';
     }).join("") + "</div>" : '<p class="empty">Nothing logged yet. Add meals as you go, or one total at the end of the day.</p>';
     h += quickChips("food", u);
     h += scanBlock();
     h += mealBlock();
     h += '<div class="stack"><label class="f">What (optional)<input id="fName" placeholder="e.g. Lunch, or Day total" value="' + esc(dv("fName", "")) + '"></label>'
       + '<div class="g4"><label class="f">Protein g<input id="fP" inputmode="decimal" value="' + esc(dv("fP", "")) + '"></label><label class="f">Carbs g<input id="fC" inputmode="decimal" value="' + esc(dv("fC", "")) + '"></label><label class="f">Fat g<input id="fF" inputmode="decimal" value="' + esc(dv("fF", "")) + '"></label><label class="f">Calories<input id="fK" inputmode="numeric" placeholder="' + (FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || "") + '" value="' + esc(dv("fK", "")) + '"></label></div>'
-      + '<p class="hint">Leave calories blank and it works them out from the macros (4/4/9 per gram).</p>'
+      + tip("food", "Leave calories blank and it works them out from the macros (4/4/9 per gram).")
       + '<button class="btn pri wide" data-act="addfood">Add food</button></div></div>';
 
     if (d === t) h += ideasCard(u, a, ft);
 
     // Exercise
     var ex = day.ex || [];
-    h += '<div class="card"><h2>Exercise <small>' + fmt(a.burned) + " cal burned</small></h2>";
+    h += '<div class="card">' + head("flame", "Exercise", fmt(a.burned) + " cal burned", "ex");
     h += ex.length ? '<div class="list">' + ex.map(function (e, i) {
       if (S.edit && S.edit.kind === "ex" && S.edit.i === i) return editForm("ex", e, i);
-      return '<div class="row"><div class="t tap" data-act="edit" data-k="ex" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name) + "</b><small>" + esc(e.note || (e.src === "manual" ? "Entered by hand" : "Tap to edit")) + '</small></div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delex" data-i="' + i + '" aria-label="Remove">×</button></div>';
+      return '<div class="row">' + rowIcon(EX_IC[e.src] || "flame", "ex") + '<div class="t tap" data-act="edit" data-k="ex" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name) + "</b><small>" + esc(e.note || (e.src === "manual" ? "Entered by hand" : "Tap to edit")) + '</small></div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delex" data-i="' + i + '" aria-label="Remove">×</button></div>';
     }).join("") + "</div>" : '<p class="empty">No workouts logged.</p>';
     h += quickChips("ex", u);
     h += '<div class="stack"><label class="f">Describe it<textarea id="eText" placeholder="e.g. 45 min incline walk at 8% and 5.5 km/h">' + esc(dv("eText", "")) + "</textarea></label>";
@@ -644,37 +697,37 @@
         var c = FC.exerciseCal(x.met, x.minutes, bodyOf(u)); tot += c;
         return '<div class="a"><div>' + esc(x.name) + " · " + fmt(x.minutes) + " min<small>MET " + x.met + " · " + esc(x.note) + '</small></div><b class="num">' + fmt(c) + "</b></div>";
       }).join("") + (S.est.assumptions ? '<p class="hint">' + esc(S.est.assumptions) + "</p>" : "")
-        + '<p class="hint">Net calories above resting, using your weight, height, age and sex. Got a watch reading? Type it below to override.</p>'
+        + tip("ex", "Net calories above resting, using your weight, height, age and sex. Got a watch reading? Type it below to override.")
         + '<div class="g2"><label class="f">Calories to log<input id="eK" inputmode="numeric" value="' + esc(dv("eK", tot)) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addest">Log it</button><button class="btn ghost" data-act="clearest" aria-label="Discard">×</button></div></div></div>';
     } else {
-      h += '<div class="btns"><button class="btn pri" style="flex:1" data-act="estimate">' + ICON.spark + (S.claude ? "Estimate with Claude" : "Estimate") + '</button></div><p class="hint">Or skip the estimate: type the calories from your watch and add.</p>'
+      h += '<div class="btns"><button class="btn pri" style="flex:1" data-act="estimate">' + ICON.spark + (S.claude ? "Estimate with Claude" : "Estimate") + '</button></div>' + tip("ex", "Or skip the estimate: type the calories from your watch and add.")
         + '<div class="g2"><label class="f">Calories (watch)<input id="eK" inputmode="numeric" value="' + esc(dv("eK", "")) + '"></label><div style="display:flex;align-items:flex-end"><button class="btn wide" data-act="addmanual">Add</button></div></div>';
     }
     h += "</div></div>";
 
     // Weight
     var wt = (u.weights || []).filter(function (x) { return x[0] === d; })[0];
-    h += '<div class="card"><h2>Weight</h2><div class="stats"><div class="stat"><span>Start</span><b>' + kg(w.start) + '</b></div><div class="stat"><span>Now</span><b>' + kg(w.current) + '</b></div><div class="stat"><span>Change</span><b class="' + (w.progress > 0 ? "good" : w.progress < 0 ? "bad" : "") + '">' + signed(w.change, 1) + "</b></div></div>"
+    h += '<div class="card">' + head("scale", "Weight") + '<div class="stats"><div class="stat"><span>Start</span><b>' + kg(w.start) + '</b></div><div class="stat"><span>Now</span><b>' + kg(w.current) + '</b></div><div class="stat"><span>Change</span><b class="' + (w.progress > 0 ? "good" : w.progress < 0 ? "bad" : "") + '">' + signed(w.change, 1) + "</b></div></div>"
       + '<div class="chart">' + lineChart([{ color: u.color, pts: weightPts(u) }], { label: "My weight", target: w.target || 0, extra: w.target ? [w.target] : [], empty: "Log a weigh-in to start the chart." }) + "</div>"
       + '<div class="g2" style="margin-top:12px"><label class="f">Weight on ' + esc(dayLabel(d).toLowerCase()) + ' (kg)<input id="wKg" inputmode="decimal" value="' + esc(dv("wKg", wt ? wt[1] : "")) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addweight">Save</button>' + (wt ? '<button class="btn ghost" data-act="delweight" aria-label="Remove weigh-in">×</button>' : "") + "</div></div></div>";
 
     // Goals
     var st = dv("gStatus", u.status || "maintain");
-    h += '<div class="card"><h2>Goals</h2><div class="stack"><div class="seg">' + ["cut", "maintain", "bulk"].map(function (s) { return '<button class="' + (st === s ? "on" : "") + '" data-act="gstatus" data-v="' + s + '">' + STATUS[s] + "</button>"; }).join("") + "</div>"
+    h += '<div class="card">' + head("target", "Goals", "", "goals") + '<div class="stack"><div class="seg">' + ["cut", "maintain", "bulk"].map(function (s) { return '<button class="' + (st === s ? "on" : "") + '" data-act="gstatus" data-v="' + s + '">' + STATUS[s] + "</button>"; }).join("") + "</div>"
       + '<div class="g3"><label class="f">Daily cal goal<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
-      + '<p class="hint">' + goalHint(st) + " Suggested for you: <b>" + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
+ + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
       + '<button class="btn pri wide" data-act="savegoals">Save goals</button></div></div>';
 
     // Profile and group
-    h += '<div class="card"><h2>Profile</h2><div class="stack"><label class="f">Name<input id="pName" value="' + esc(dv("pName", u.name)) + '"></label>'
+    h += '<div class="card">' + head("user", "Profile", "", "profile") + '<div class="stack"><label class="f">Name<input id="pName" value="' + esc(dv("pName", u.name)) + '"></label>'
       + '<div class="g3"><label class="f">Height cm<input id="pH" inputmode="numeric" value="' + esc(dv("pH", u.heightCm || "")) + '"></label><label class="f">Birth year<input id="pY" inputmode="numeric" value="' + esc(dv("pY", u.birthYear || "")) + '"></label><label class="f">Sex<select id="pS">' + sexOpts(dv("pS", u.sex || "")) + "</select></label></div>"
       + '<label class="f">Starting weight kg<input id="pW" inputmode="decimal" value="' + esc(dv("pW", u.startWeight || "")) + '"></label>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + COLOURS.map(function (c) { return '<button aria-label="Colour" data-act="colour" data-v="' + c + '" style="width:30px;height:30px;border-radius:50%;border:3px solid ' + ((dv("pC", u.color) === c) ? "var(--text)" : "transparent") + ";background:" + c + '"></button>'; }).join("") + "</div>"
-      + '<p class="hint">Height, age and sex sharpen the burn estimates and the suggested goal.</p>'
+      + tip("profile", "Height, age and sex sharpen the burn estimates and the suggested goal.")
       + '<button class="btn pri wide" data-act="saveprofile">Save profile</button></div></div>';
-    h += '<div class="card"><h2>Crew</h2><div class="stack"><button class="btn wide" data-act="invite">' + ICON.share + 'Share invite link</button><p class="hint">Anyone with the link can join and see everyone. Only send it to the crew.</p>'
+    h += '<div class="card">' + head("users", "Crew", "", "crew") + '<div class="stack"><button class="btn wide" data-act="invite">' + ICON.share + 'Share invite link</button>' + tip("crew", "Anyone with the link can join and see everyone. Only send it to the crew.")
       + '<button class="btn ghost wide" data-act="switch">Switch person on this phone</button><button class="btn danger wide" data-act="leave">Delete my profile and data</button>'
-      + '<p class="hint">Sync: ' + esc(S.err ? "offline (" + S.err + ")" : S.lastSync ? "last synced " + new Date(S.lastSync).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" }) : "waiting") + (S.outbox.length ? ", " + S.outbox.length + " change(s) waiting to send" : "") + ". Workout estimates: " + (S.claude ? "Claude" : "built-in formula") + ".</p></div></div>";
+      + tip("crew", "Sync: " + esc(S.err ? "offline (" + S.err + ")" : S.lastSync ? "last synced " + new Date(S.lastSync).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" }) : "waiting") + (S.outbox.length ? ", " + S.outbox.length + " change(s) waiting to send" : "") + ". Workout estimates: " + (S.claude ? "Claude" : "built-in formula") + ".") + "</div></div>";
     el.innerHTML = h;
   }
   function goalHint(st) {
@@ -785,6 +838,7 @@
       changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, src: "barcode", code: p.code }); });
       S.scan = null; delete S.draft.sG; renderMe();
     },
+    info: function (b) { var k = b.dataset.k; S.info[k] = !S.info[k]; render(); },
     edit: function (b) {
       var k = b.dataset.k, i = +b.dataset.i, e = ((getDay(S.me, S.date) || {})[k] || [])[i]; if (!e) return;
       S.edit = { kind: k, i: i, id: e.id }; clearDraft(["edN", "edP", "edC", "edF", "edK"]); renderMe();
@@ -985,7 +1039,7 @@
 
   /* ---------- Workout tracker (train.js) ---------- */
   if (window.FCTrain) FCTrain.init({ S: S, FC: FC, me: me, user: user, getDay: getDay, changeDay: changeDay, changeMe: changeMe, toast: toast, celebrate: celebrate,
-    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON });
+    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip });
 
   /* ---------- Start ---------- */
   (function readHash() {
