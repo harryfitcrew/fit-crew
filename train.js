@@ -35,6 +35,7 @@
     cal: SV('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
     chart: SV('<path d="M4 19h16M7 15l4-5 3 3 5-7"/>'),
     hist: SV('<path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
+    play: SV('<path d="M8 5.5v13l10.5-6.5z"/>'),
     sun: SV('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>')
   };
   var T = { view: "home", draft: null, picker: null, q: "", mf: -1, active: loadActive(), finish: null, open: {}, mus: null, custom: null };
@@ -58,6 +59,14 @@
       if (c) return { i: c.i, n: c.n, p: c.p || [], s: c.s || [], e: "custom", c: 0 };
     }
     return { i: id, n: "Exercise", p: [], s: [], e: "" };
+  }
+  // Two photos per exercise (start and end position) from free-exercise-db, public domain. Loaded when first shown, then kept on the phone.
+  var IMG = "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/";
+  var NOIMG = { Kettlebell_Halo: 1, Kettlebell_Halo_With_Overhead_Extension: 1, Kettlebell_Overhead_Triceps_Extension: 1 };
+  function demo(id, small) {
+    if (!EXMAP[id] || NOIMG[id]) return '<div class="demo none' + (small ? " sm" : "") + '">' + TI.dumbbell + "<span>No demo for this one</span></div>";
+    var u = IMG + encodeURIComponent(id) + "/";
+    return '<div class="demo' + (small ? " sm" : "") + '"><img src="' + u + '0.jpg" alt="Start position" decoding="async" onerror="this.parentNode.classList.add(\'none\')"><img class="f2" src="' + u + '1.jpg" alt="End position" decoding="async" onerror="this.parentNode.classList.add(\'none\')"><span class="dlab">Demo</span></div>';
   }
   function shortName(n) { return String(n || "").replace(/ - Medium Grip$/, ""); }
   function musText(x) { return x.p.map(function (m) { return LABEL[M[m]]; }).join(", "); }
@@ -126,9 +135,9 @@
   }
   function mix(a, b, t) { return "#" + [0, 2, 4].map(function (i) { var x = parseInt(a.substr(i + 1, 2), 16), y = parseInt(b.substr(i + 1, 2), 16); return ("0" + Math.round(x + (y - x) * t).toString(16)).slice(-2); }).join(""); }
   function heat(r) {
-    if (!r.trained) return "#45433f";
-    var f = r.f; if (f <= 0) return "#7cbf86";
-    return f < 0.5 ? mix("#7cbf86", "#e3b25b", f / 0.5) : mix("#e3b25b", "#ef6a5e", (f - 0.5) / 0.5);
+    if (!r.trained) return "#3a413c";
+    var f = r.f; if (f <= 0) return "#34d6a4";
+    return f < 0.5 ? mix("#34d6a4", "#ffb547", f / 0.5) : mix("#ffb547", "#ff5d5d", (f - 0.5) / 0.5);
   }
 
   // Original, simplified body outlines. Muscle shapes carry data-m (muscle index).
@@ -180,7 +189,7 @@
       var r = rec[T.mus], nm = LABEL[M[T.mus]];
       h += '<p class="mtip"><i style="background:' + heat(r) + '"></i>' + esc(nm) + ": " + (!r.trained ? "not trained this week" : r.f > 0.05 ? hoursText(r.left) + " to go" : "ready") + "</p>";
     }
-    h += '<div class="legend lg2"><span><i style="background:#ef6a5e"></i>Recovering</span><span><i style="background:#e3b25b"></i>Nearly</span><span><i style="background:#7cbf86"></i>Ready</span><span><i style="background:#45433f"></i>Not trained</span></div>';
+    h += '<div class="legend lg2"><span><i style="background:#ff5d5d"></i>Recovering</span><span><i style="background:#ffb547"></i>Nearly</span><span><i style="background:#34d6a4"></i>Ready</span><span><i style="background:#3a413c"></i>Not trained</span></div>';
     if (!small && (sore.length || ready.length)) {
       h += '<div class="rchips">' + sore.map(function (s) { return '<span class="rchip" style="--c:' + heat(rec[s[0]]) + '">' + esc(LABEL[M[s[0]]]) + "<b>" + hoursText(s[1]) + "</b></span>"; }).join("")
         + ready.map(function (i) { return '<span class="rchip ok">' + esc(LABEL[M[i]]) + "</span>"; }).join("") + "</div>";
@@ -298,10 +307,11 @@
     h += '<div class="list">' + list.map(function (o) {
       var l = o.l, sets = l.exs.reduce(function (s, e) { return s + e.sets.length; }, 0), open = T.open[l.id];
       var x = '<div class="row hist" data-tact="hist" data-id="' + l.id + '" role="button"><span class="ricon">' + ((l.pbs || []).length ? TI.trophy : A.ICON.dumbbell) + '</span><div class="t"><b>' + esc(l.name) + "</b><small>" + esc(A.dayLabel(o.d)) + " · " + fmt(l.min) + " min · " + sets + " set" + (sets === 1 ? "" : "s") + ((l.pbs || []).length ? " · " + l.pbs.length + " PB" + (l.pbs.length > 1 ? "s" : "") : "") + '</small></div><span class="k">' + fmt(l.kcal) + "</span></div>";
-      if (open) x += '<div class="hdet">' + l.exs.map(function (e) { return "<div><b>" + esc(shortName(e.n || exInfo(e.x).n)) + "</b> " + e.sets.map(function (s) { return (+s[0] ? kgs(s[0]) + "×" : "") + s[1]; }).join(", ") + "</div>"; }).join("") + "</div>";
+      if (open) x += '<div class="hdet">' + l.exs.map(function (e) { return "<div><b>" + esc(shortName(e.n || exInfo(e.x).n)) + "</b> " + e.sets.map(function (s) { return (+s[0] ? kgs(s[0]) + "×" : "") + s[1]; }).join(", ") + "</div>"; }).join("")
+        + '<button class="btn danger sm hdel" data-tact="histdel" data-id="' + l.id + '" data-d="' + o.d + '">' + A.ICON.trash + "Delete workout</button></div>";
       return x;
     }).join("") + "</div>";
-    return h + A.tip("hist", "Tap a workout to see the sets. To remove one, delete it from Exercise on the Me page.") + "</div>";
+    return h + A.tip("hist", "Tap a workout to see its sets or delete it. Deleting also removes its calories and puts back any PBs it set.") + "</div>";
   }
 
   /* ---------- Routine editor ---------- */
@@ -403,7 +413,7 @@
     var h = '<div class="card live"><div class="lnav"><button class="icb" data-tact="goto" data-k="' + (k - 1) + '"' + (k ? "" : " disabled") + ' aria-label="Previous exercise">' + TI.left + '</button>'
       + '<span>Exercise ' + (k + 1) + " of " + w.exs.length + (grp.length > 1 ? ' · <b class="sspill">Superset ' + esc(e.g) + "</b>" : "") + "</span>"
       + '<button class="icb" data-tact="goto" data-k="' + (k + 1) + '"' + (k < w.exs.length - 1 ? "" : " disabled") + ' aria-label="Next exercise">' + TI.right + "</button></div>"
-      + '<h3 class="lname">' + esc(shortName(x.n)) + '</h3><div class="mchips">' + musChips(x) + "</div>"
+      + demo(e.x) + '<h3 class="lname">' + esc(shortName(x.n)) + '</h3><div class="mchips">' + musChips(x) + "</div>"
       + (pb && pb.w ? '<div class="lpb">' + TI.trophy + "PB " + kgs(pb.w) + " kg × " + pb.wr + (pb.e1 ? '<span>· est. max ' + fmt(pb.e1) + " kg</span>" : "") + "</div>" : "");
     if (grp.length > 1) h += '<div class="ssnext">' + grp.map(function (i) { return '<span class="' + (i === k ? "on" : "") + '">' + esc(shortName(exInfo(w.exs[i].x).n)) + " " + doneCount(w.exs[i]) + "/" + w.exs[i].sets.length + "</span>"; }).join('<i>→</i>') + "</div>";
     h += '<div class="lsets">' + e.sets.map(function (s, i) {
@@ -492,6 +502,7 @@
     }).filter(function (e) { return e.sets.length; });
     if (!exs.length) { A.toast("Tick at least one set first"); return; }
     var date = w.date || A.today(), pbs = [], pbMap = JSON.parse(JSON.stringify(u.pb || {})), last = JSON.parse(JSON.stringify(u.last || {}));
+    var pbBefore = {}, pbAfter = {}, lastBefore = {};
     exs.forEach(function (e) {
       var old = pbMap[e.x], p = old ? JSON.parse(JSON.stringify(old)) : { n: e.n }, first = !old;
       p.n = e.n;
@@ -501,12 +512,14 @@
         if (est > (p.e1 || 0) + 0.05) { var better = p.e1 > 0; p.e1 = r1(est); p.e1kg = kg; p.e1r = reps; p.e1d = date; p.e1new = !first && better; if (p.e1new && !(pbs.length && pbs[pbs.length - 1].x === e.x && pbs[pbs.length - 1].kg === kg)) pbs.push({ x: e.x, n: e.n, t: "e1", kg: kg, reps: reps }); }
         if (!kg && reps > (p.r || 0)) { var more = p.r > 0; p.r = reps; p.rd = date; p.rnew = !first && more; if (p.rnew) pbs.push({ x: e.x, n: e.n, t: "r", reps: reps }); }
       });
+      if (JSON.stringify(old || null) !== JSON.stringify(p)) { pbBefore[e.x] = old || null; pbAfter[e.x] = p; }
+      lastBefore[e.x] = last[e.x] || null;
       pbMap[e.x] = p;
       last[e.x] = { d: date, sets: e.sets };
     });
     // Keep one PB per exercise in the summary
     var seen = {}; pbs = pbs.reverse().filter(function (p) { if (seen[p.x]) return false; seen[p.x] = 1; return true; }).reverse();
-    var lift = { id: w.id, name: w.name || "Workout", rid: w.rid, start: w.start, end: Date.now(), min: min, effort: f.effort, kcal: kc, exs: exs, pbs: pbs };
+    var lift = { id: w.id, name: w.name || "Workout", rid: w.rid, start: w.start, end: Date.now(), min: min, effort: f.effort, kcal: kc, exs: exs, pbs: pbs, pbBefore: pbBefore, pbAfter: pbAfter, lastBefore: lastBefore };
     var nsets = exs.reduce(function (s, e) { return s + e.sets.length; }, 0);
     A.changeMe(function (uu) {
       uu.pb = pbMap; uu.last = last;
@@ -524,6 +537,63 @@
     A.toast(pbs.length ? pbs.length + " new PB" + (pbs.length > 1 ? "s" : "") + "! " + pbs.map(function (p) { return shortName(p.n); }).join(", ") : "Workout saved. " + fmt(kc) + " cal added to today.");
   }
 
+  /* ---------- Deleting a logged workout ---------- */
+  // Rebuild one exercise's bests from the sessions still on the phone (last 10 weeks)
+  function rebuildPb(userId, exId, skipId, name) {
+    var p = null;
+    liftsOf(userId, 70).slice().reverse().forEach(function (o) {
+      if (o.l.id === skipId) return;
+      o.l.exs.forEach(function (e) {
+        if (e.x !== exId) return;
+        p = p || { n: name };
+        e.sets.forEach(function (st) {
+          var kg = st[0], reps = st[1], est = e1rm(kg, reps);
+          if (kg > 0 && (!(p.w > 0) || kg > p.w || (kg === p.w && reps > p.wr))) { p.w = kg; p.wr = reps; p.wd = o.d; }
+          if (est > (p.e1 || 0)) { p.e1 = r1(est); p.e1kg = kg; p.e1r = reps; p.e1d = o.d; }
+          if (!kg && reps > (p.r || 0)) { p.r = reps; p.rd = o.d; }
+        });
+      });
+    });
+    return p;
+  }
+  function lastSession(userId, exId, skipId) {
+    var list = liftsOf(userId, 70);
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].l.id === skipId) continue;
+      var e = list[i].l.exs.filter(function (x) { return x.x === exId; })[0];
+      if (e) return { d: list[i].d, sets: e.sets };
+    }
+    return null;
+  }
+  function deleteWorkout(date, id) {
+    var u = me(), day = A.getDay(u.id, date), lift = ((day && day.lifts) || []).filter(function (l) { return l.id === id; })[0];
+    if (!lift) return;
+    A.changeMe(function (uu) {
+      uu.pb = uu.pb || {}; uu.last = uu.last || {};
+      lift.exs.forEach(function (e) {
+        var cur = uu.pb[e.x];
+        if (lift.pbAfter && Object.prototype.hasOwnProperty.call(lift.pbAfter, e.x)) {
+          // Saved after this update: put the old bests back if nothing has beaten them since
+          if (JSON.stringify(cur) === JSON.stringify(lift.pbAfter[e.x])) { if (lift.pbBefore[e.x]) uu.pb[e.x] = lift.pbBefore[e.x]; else delete uu.pb[e.x]; }
+        } else if (!lift.pbAfter && cur && (cur.wd === date || cur.e1d === date || cur.rd === date)) {
+          // Older workout: best effort from the history still on the phone
+          var rb = rebuildPb(u.id, e.x, id, e.n);
+          if (rb) uu.pb[e.x] = rb; else delete uu.pb[e.x];
+        }
+        var l = uu.last[e.x];
+        if (l && l.d === date) {
+          var prev = (lift.lastBefore && lift.lastBefore[e.x]) || lastSession(u.id, e.x, id);
+          if (prev) uu.last[e.x] = prev; else delete uu.last[e.x];
+        }
+      });
+    });
+    A.changeDay(date, function (d) {
+      d.lifts = (d.lifts || []).filter(function (l) { return l.id !== id; });
+      d.ex = d.ex.filter(function (x) { return x.lift !== id; });
+    });
+    delete T.open[id]; render(); A.toast("Workout deleted");
+  }
+
   /* ---------- Exercise picker ---------- */
   function renderPicker() {
     var ov = $("#tpick");
@@ -539,7 +609,12 @@
     $("#tpMus").innerHTML = '<button class="chip' + (T.mf < 0 ? " on" : "") + '" data-tact="mf" data-m="-1">All</button>' + M.map(function (m, i) { return '<button class="chip' + (T.mf === i ? " on" : "") + '" data-tact="mf" data-m="' + i + '">' + LABEL[m] + "</button>"; }).join("");
     var res = search(T.q, T.mf), h = "";
     if (!T.q && T.mf < 0) h += '<p class="hint" style="padding:4px 2px 8px">Popular exercises. Search or pick a muscle to see more.</p>';
-    h += res.map(function (x) { return '<button class="tp-item" data-tact="add" data-x="' + esc(x.i) + '"><b>' + esc(x.n) + "</b><small>" + esc(musText(x)) + (x.e ? " · " + esc(x.e) : "") + "</small></button>"; }).join("");
+    h += res.map(function (x) {
+      var open = T.peek === x.i;
+      return '<div class="tp-row' + (open ? " open" : "") + '"><button class="tp-item" data-tact="add" data-x="' + esc(x.i) + '"><b>' + esc(x.n) + "</b><small>" + esc(musText(x)) + (x.e ? " · " + esc(x.e) : "") + "</small></button>"
+        + (x.e !== "custom" ? '<button class="tp-peek' + (open ? " on" : "") + '" data-tact="peek" data-x="' + esc(x.i) + '" aria-label="Show demo">' + TI.play + "</button>" : "")
+        + (open ? demo(x.i, true) : "") + "</div>";
+    }).join("");
     if (!res.length) h += '<p class="empty">No match.</p>';
     h += T.custom ? customForm() : '<button class="btn ghost wide" data-tact="custom" style="margin-top:8px">Can\'t find it? Add your own exercise</button>';
     $("#tpList").innerHTML = h;
@@ -586,6 +661,7 @@
     pick: function (b) { T.picker = { mode: b.dataset.mode }; T.q = ""; T.mf = -1; T.custom = null; render(); setTimeout(function () { var q = $("#tpQ"); if (q && window.innerWidth > 700) q.focus(); }, 50); },
     pickdone: function () { T.picker = null; T.custom = null; render(); },
     mf: function (b) { T.mf = +b.dataset.m; renderPicker(); },
+    peek: function (b) { T.peek = T.peek === b.dataset.x ? null : b.dataset.x; renderPicker(); },
     add: function (b) { addExercise(b.dataset.x); },
     custom: function () { T.custom = { n: T.q, m: T.mf >= 0 ? T.mf : 0 }; renderPicker(); },
     customcancel: function () { T.custom = null; renderPicker(); },
@@ -634,6 +710,10 @@
     discard: function (b) {
       if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Tap again to discard"; setTimeout(function () { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Discard workout"; } }, 3000); return; }
       T.active = null; T.finish = null; T.overview = false; saveActive(); wake(false); render(); A.toast("Workout discarded");
+    },
+    histdel: function (b) {
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.lastChild.textContent = "Tap again to delete"; setTimeout(function () { if (b.isConnected) { b.dataset.sure = ""; b.lastChild.textContent = "Delete workout"; } }, 3000); return; }
+      deleteWorkout(b.dataset.d, b.dataset.id);
     },
     prog: function (b) { T.prog = b.dataset.x; render(); },
     hist: function (b) { T.open[b.dataset.id] = !T.open[b.dataset.id]; render(); }
@@ -692,6 +772,6 @@
     if (T.active) wake(true);
   }
 
-  window.FCTrain = { init: init, render: render, crewHtml: crewHtml, profileHtml: profileHtml, active: function () { return !!T.active; },
+  window.FCTrain = { init: init, render: render, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
     _test: { recovery: recovery, e1rm: e1rm, search: search, exInfo: exInfo } };
 })();

@@ -6,7 +6,7 @@
   var API = window.FITCREW_API || "";
   var LS = { code: "fitcrew.code", me: "fitcrew.me", cache: "fitcrew.cache", outbox: "fitcrew.outbox", board: "fitcrew.board", diary: "fitcrew.diaryAuto" };
   var DIARY_KEY = "calorie-diary.v2"; // optional Calorie Diary app on the same GitHub Pages origin
-  var COLOURS = ["#d97757", "#5fb3a8", "#e3b25b", "#9d8cf0", "#62a8e5", "#e07ba0", "#8cc56b", "#c9a27e"];
+  var COLOURS = ["#c4f135", "#5fb3a8", "#ffb547", "#9d8cf0", "#62a8e5", "#e07ba0", "#ff7a45", "#d97757"];
   var STATUS = { cut: "Cutting", bulk: "Bulking", maintain: "Maintaining" };
   var POLL_MS = 20000;
 
@@ -81,6 +81,7 @@
     body: '<svg viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2"/><path d="M12 7v7M7 9l5 1 5-1M9.5 21l2.5-7 2.5 7"/></svg>',
     hist: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
     list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
     check2: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     equals: '<svg viewBox="0 0 24 24"><path d="M6 9h12M6 15h12"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -448,7 +449,26 @@
     var st = function (ic, cls, v, l) { return '<div class="ss"><span class="ssi ' + cls + '">' + ICON[ic] + "</span><div><b>" + v + "</b><small>" + l + "</small></div></div>"; };
     return '<div class="card sum"><div class="sumtop"><div class="bring">' + ringSvg + '<div class="bmid"><b class="' + (left < 0 && !bulk ? "bad" : "") + '">' + mid + "</b><span>" + lbl + "</span></div></div>"
       + '<div class="sstats">' + st("utensils", "eat", fmt(a.eaten), "eaten of " + fmt(a.goal)) + st("flame", "brn", fmt(a.burned), "burned") + st("equals", "net", fmt(a.net), "net") + "</div></div>"
-      + (a.state === "good" ? '<div class="okchip">' + ICON.check2 + "On track</div>" : a.logged ? '<div class="status ' + a.state + '">' + esc(a.msg) + "</div>" : "") + macroBlock(u, ft) + "</div>";
+      + (a.state === "good" ? '<div class="okchip">' + ICON.check2 + "On track</div>" : a.logged ? '<div class="status ' + a.state + '">' + esc(a.msg) + "</div>" : "") + weekAvgRow(u) + macroBlock(u, ft) + "</div>";
+  }
+  // Weekly running average: completed days this week (Mon to yesterday, plus today after 8pm), days with food logged
+  function weekAvg(u) {
+    var t = today(), wd = new Date(t + "T12:00:00").getDay(), mon = FC.addDays(t, -((wd + 6) % 7));
+    var eat = 0, net = 0, n = 0;
+    for (var d = mon; d <= t; d = FC.addDays(d, 1)) {
+      if (d === t && !evening()) break;
+      var day = getDay(u.id, d), k = FC.foodTotals(day).kcal; if (!k) continue;
+      eat += k; net += k - FC.burned(day); n++;
+    }
+    if (!n) return null;
+    var e = Math.round(eat / n), nt = Math.round(net / n), g = +u.goalKcal || 0, st = u.status || "maintain";
+    var ok = !g ? null : st === "cut" ? nt <= g : st === "bulk" ? nt >= g : Math.abs(nt - g) <= g * 0.1;
+    return { eat: e, net: nt, n: n, goal: g, ok: ok };
+  }
+  function weekAvgRow(u) {
+    var w = weekAvg(u);
+    if (!w) return '<div class="wavg"><span class="wl">' + ICON.cal + 'Week avg</span><span class="wm">Starts after your first full day</span></div>';
+    return '<div class="wavg"><span class="wl">' + ICON.cal + "Week avg</span><b>" + fmt(w.eat) + '</b><span class="wm">/ ' + fmt(w.goal) + ' eaten</span><span class="wn ' + (w.ok === true ? "good" : w.ok === false ? "bad" : "") + '">net ' + fmt(w.net) + '</span><small>' + w.n + " day" + (w.n === 1 ? "" : "s") + "</small></div>";
   }
   function macroBlock(u, ft) {
     var pg = +u.proteinGoal || 0, kc = ft.p * 4 + ft.c * 4 + ft.f * 9, R = 34, C = 2 * Math.PI * R, off = 0;
@@ -880,7 +900,12 @@
       toast("Added " + x.name);
     },
     delfood: function (b) { S.edit = null; changeDay(S.date, function (d) { d.food.splice(+b.dataset.i, 1); }); },
-    delex: function (b) { S.edit = null; changeDay(S.date, function (d) { var e = d.ex.splice(+b.dataset.i, 1)[0]; if (e && e.lift && d.lifts) d.lifts = d.lifts.filter(function (l) { return l.id !== e.lift; }); }); },
+    delex: function (b) {
+      S.edit = null;
+      var e = ((getDay(S.me, S.date) || {}).ex || [])[+b.dataset.i];
+      if (e && e.lift && window.FCTrain) return FCTrain.deleteWorkout(S.date, e.lift);
+      changeDay(S.date, function (d) { d.ex.splice(+b.dataset.i, 1); });
+    },
     diary: function () { pullDiary(S.date); },
     estimate: function (b) {
       var text = val("eText"); if (!text) return toast("Describe the workout first");
@@ -1021,7 +1046,7 @@
     cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.scale(dpr, dpr);
     var ox = innerWidth / 2, oy = innerHeight * 0.35;
     if (fromEl && fromEl.getBoundingClientRect) { var r = fromEl.getBoundingClientRect(); ox = r.left + r.width / 2; oy = r.top + r.height / 2; }
-    var cols = ["#d97757", "#e8a07f", "#7cbf86", "#e3b25b", "#f5f4ef", "#9d8cf0"], ps = [];
+    var cols = ["#c4f135", "#dcff6e", "#34d6a4", "#ffb547", "#f3f6f2", "#6aa9e9"], ps = [];
     for (var i = 0; i < (fromEl ? 40 : 110); i++) {
       var ang = Math.random() * Math.PI * 2, sp = 3 + Math.random() * (fromEl ? 5 : 9);
       ps.push({ x: ox, y: oy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 4, s: 4 + Math.random() * 5, c: cols[i % cols.length], r: Math.random() * 6, vr: (Math.random() - .5) * .4 });

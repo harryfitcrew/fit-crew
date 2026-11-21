@@ -1,6 +1,6 @@
 // Offline support. Bump VERSION whenever app files change so phones pick up the update.
 // Files are fetched past the browser's HTTP cache (GitHub Pages caches for 10 min), so a new version gets new files.
-const VERSION = "fc-2026-11-21b";
+const VERSION = "fc-2026-11-22b";
 const SHELL = ["index.html", "app.js", "scan.js", "exercises.js", "train.js", "logic.js", "config.js", "manifest.webmanifest",
   "icon-192.png", "icon-512.png", "maskable-512.png", "apple-touch-icon.png"];
 
@@ -9,7 +9,7 @@ self.addEventListener("install", (e) => {
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k.startsWith("fc-") && k !== VERSION && k !== VERSION + "-ext").map((k) => caches.delete(k))))
+    .then((keys) => Promise.all(keys.filter((k) => k.startsWith("fc-") && k !== VERSION && k !== VERSION + "-ext" && k !== "fc-demo").map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
@@ -35,6 +35,17 @@ self.addEventListener("fetch", (e) => {
       if (res.ok || res.type === "opaque") cache.put(req, res.clone());
       return res;
     }));
+  }
+  // Exercise demo photos: keep once seen (they never change), so they work offline at the gym
+  if (url.hostname === "raw.githubusercontent.com" && url.pathname.indexOf("/yuhonas/free-exercise-db/") === 0) {
+    e.respondWith(caches.open("fc-demo").then(async (cache) => {
+      const hit = await cache.match(req);
+      if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok || res.type === "opaque") cache.put(req, res.clone());
+      return res;
+    }));
+    return;
   }
   // The backend (script.google.com) always goes to the network.
 });
