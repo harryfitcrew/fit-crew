@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   var API = window.FITCREW_API || "";
-  var LS = { code: "fitcrew.code", me: "fitcrew.me", cache: "fitcrew.cache", outbox: "fitcrew.outbox", board: "fitcrew.board", diary: "fitcrew.diaryAuto" };
+  var LS = { code: "fitcrew.code", me: "fitcrew.me", cache: "fitcrew.cache", outbox: "fitcrew.outbox", board: "fitcrew.board", diary: "fitcrew.diaryAuto", pin: "fitcrew.pin" };
   var DIARY_KEY = "calorie-diary.v2"; // optional Calorie Diary app on the same GitHub Pages origin
   var COLOURS = ["#c4f135", "#5fb3a8", "#ffb547", "#9d8cf0", "#62a8e5", "#e07ba0", "#ff7a45", "#d97757"];
   var STATUS = { cut: "Cutting", bulk: "Bulking", maintain: "Maintaining" };
@@ -24,6 +24,7 @@
     err: "",
     lastSync: 0,
     sheet: null,
+    pin: lsGet(LS.pin, ""), gate: null, pinBuf: "", pinFirst: "", pinErr: "", pinless: false, pinChecked: false,
     info: {}
   };
 
@@ -56,6 +57,28 @@
   function getDay(id, d) { return S.cache.days[id + "|" + d]; }
   function bodyOf(u) { var w = FC.weightStats(u); return { kg: w.current || u.startWeight || 80, cm: +u.heightCm || 0, age: FC.age(u), sex: u.sex }; }
   function initial(n) { return esc(String(n || "?").trim().charAt(0).toUpperCase()); }
+  function lastActive(u) {
+    var t = Math.max(+u.seen || 0, +u.updated || 0), d = today();
+    for (var i = 0; i < 8; i++) {
+      var day = getDay(u.id, FC.addDays(d, -i)); if (!day) continue;
+      t = Math.max(t, +day.updated || 0);
+      (day.lifts || []).forEach(function (l) { t = Math.max(t, +l.end || 0); });
+    }
+    return t;
+  }
+  function agoText(t) {
+    if (!t) return "";
+    var m = Math.floor((Date.now() - t) / 60000);
+    if (m < 5) return "Active now";
+    if (m < 60) return "Active " + m + " min ago";
+    var h = Math.floor(m / 60); if (h < 24) return "Active " + h + " h ago";
+    var dd = Math.floor(h / 24); return dd === 1 ? "Active yesterday" : "Active " + dd + " days ago";
+  }
+  function activeLine(u) {
+    var t = lastActive(u), txt = agoText(t); if (!txt) return "";
+    var fresh = Date.now() - t < 3600e3;
+    return '<div class="seen' + (fresh ? " on" : "") + '"><i></i>' + txt + "</div>";
+  }
   function avatar(u, lg) { return '<span class="av' + (lg ? " lg" : "") + '" style="background:' + esc(u.color || COLOURS[0]) + '">' + initial(u.name) + "</span>"; }
 
   var ICON = {
@@ -82,6 +105,9 @@
     hist: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 103-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
     list: '<svg viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
+    gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
+    lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>',
+    eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     check2: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     equals: '<svg viewBox="0 0 24 24"><path d="M6 9h12M6 15h12"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -97,12 +123,12 @@
     if (!API) return Promise.reject(new Error("No backend set up"));
     var ctrl = window.AbortController ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 30000);
-    var body = JSON.stringify(Object.assign({ code: S.code, action: action }, data || {}));
+    var body = JSON.stringify(Object.assign({ code: S.code, action: action, viewer: S.me || undefined, pin: S.pin || undefined }, data || {}));
     return fetch(API, { method: "POST", body: body, redirect: "follow", signal: ctrl && ctrl.signal })
       .then(function (r) { return r.json(); })
       .then(function (j) {
         clearTimeout(timer);
-        if (!j.ok) { var e = new Error(j.error || "Server error"); e.auth = j.auth === false; e.noClaude = !!j.noClaude; throw e; }
+        if (!j.ok) { var e = new Error(j.error || "Server error"); e.auth = j.auth === false; e.noClaude = !!j.noClaude; e.pin = !!j.pin; throw e; }
         return j;
       }, function (e) { clearTimeout(timer); throw e.name === "AbortError" ? new Error("Timed out") : e; });
   }
@@ -147,16 +173,26 @@
     return flush()
       .then(function () { return call("state", { since: FC.addDays(today(), -70) }); })
       .then(function (j) {
+        if (j.limited && S.me) {
+          if (!me()) S.cache.users = j.users || []; // names only, so the PIN screen can say who it's for
+          if (!S.gate) S.gate = "enter"; S.lastSync = Date.now(); return;
+        }
         S.cache = { users: j.users || [], days: j.days || {}, kudos: j.kudos || [] };
         applyPending();
         persist();
         S.lastSync = Date.now();
         if (S.me && !me() && !S.outbox.length) { S.me = ""; lsSet(LS.me, ""); }
+        if (S.me && !S.pin && !S.pinChecked && !S.pinless && !j.limited) checkPin();
+        var mu = me();
+        if (mu && document.visibilityState === "visible" && Date.now() - (+mu.seen || 0) > 15 * 60000) {
+          var sx = clone(mu); sx.seen = Date.now(); upsertUser(sx); setTimeout(function () { queue({ action: "saveUser", user: sx }); }, 0); // quiet: no redraw while typing
+        }
         if (S.claude == null) call("ping").then(function (p) { S.claude = !!p.claude; renderMe(true); }).catch(function () {});
       })
       .catch(function (e) {
         S.err = e.message || "Offline";
         if (e.auth) { S.code = ""; lsSet(LS.code, ""); }
+        if (e.pin && S.me) { S.pin = ""; lsSet(LS.pin, ""); if (!S.gate) S.gate = "enter"; S.err = ""; }
       })
       .then(function () {
         S.syncing = false;
@@ -280,7 +316,7 @@
     return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + " " + size + '" role="img" aria-label="' + pct + '% of goal">'
       + '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="var(--line)" stroke-width="6"/>'
       + '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + (c * p) + " " + c + '" transform="rotate(-90 ' + size / 2 + " " + size / 2 + ')"/>'
-      + '<text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="var(--text)" style="font:600 ' + Math.round(size / 4.6) + 'px var(--serif)">' + (a.logged ? pct + "%" : "–") + "</text></svg>";
+      + '<text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" fill="var(--text)" style="font:700 ' + Math.round(size / 4) + 'px var(--hfont)">' + (a.logged ? pct + "%" : "–") + "</text></svg>";
   }
 
   // series: [{color, name, pts:[[date, value]]}]
@@ -358,6 +394,7 @@
         + '<div class="tnums"><div class="eat num">' + fmt(a.eaten) + "<small>/ " + fmt(a.goal) + " eaten</small></div>"
         + '<div class="brn num">' + (a.burned ? "−" : "") + fmt(a.burned) + "<small>burned</small></div></div></div>"
         + '<div class="tmsg ' + (a.state === "bad" ? "bad" : a.state === "good" ? "good" : "warn") + '">' + esc(a.msg) + "</div>"
+        + activeLine(u)
         + '<div class="tfoot">' + (r.streak >= 3 ? '<span class="flame">' + ICON.flame + "</span>" : "") + "<span>" + metric(r) + "</span>"
         + (u.id !== S.me ? '<button class="kudo' + (mine ? " on" : "") + '" data-act="kudos" data-id="' + u.id + '" aria-label="High five ' + esc(u.name) + '">' + ICON.hand + (k.length || "") + "</button>"
           : (k.length ? '<span class="kudo on">' + ICON.hand + k.length + "</span>" : ""))
@@ -393,7 +430,8 @@
   }
 
   /* ---------- Profile sheet ---------- */
-  function renderProfile(id) {
+  function renderProfile(id, fromSync) {
+    if (id === "settings") return renderSettings(fromSync);
     var u = user(id); if (!u) return closeSheet();
     var t = today(), day = getDay(u.id, t) || {}, a = FC.assess(u, day, evening()), w = FC.weightStats(u), ft = FC.foodTotals(day);
     var wk = FC.weekPoints(u, getDay, t, evening()), st = FC.streak(u, getDay, t, evening());
@@ -731,11 +769,30 @@
       + '<div class="chart">' + lineChart([{ color: u.color, pts: weightPts(u) }], { label: "My weight", target: w.target || 0, extra: w.target ? [w.target] : [], empty: "Log a weigh-in to start the chart." }) + "</div>"
       + '<div class="g2" style="margin-top:12px"><label class="f">Weight on ' + esc(dayLabel(d).toLowerCase()) + ' (kg)<input id="wKg" inputmode="decimal" value="' + esc(dv("wKg", wt ? wt[1] : "")) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addweight">Save</button>' + (wt ? '<button class="btn ghost" data-act="delweight" aria-label="Remove weigh-in">×</button>' : "") + "</div></div></div>";
 
+    h += '<button class="btn wide setbtn" data-act="settings">' + ICON.gear + "Settings: profile, goals, sharing, PIN</button>";
+    el.innerHTML = h;
+  }
+  /* ---------- Settings (opens as a sheet from the gear) ---------- */
+  function sharingCard(u) {
+    var others = S.cache.users.filter(function (x) { return x.id !== u.id; }), hide = u.hide || [];
+    var h = '<div class="card">' + head("eye", "Sharing", "", "share") + tip("share", "Ticked people see your food, calories, weight, workouts and lifts. Unticked people can't see you at all, not even on the leaderboard. New people who join are ticked automatically. Your PIN keeps this private: the Google script only sends your data to people you've ticked.");
+    if (!others.length) return h + '<p class="empty">No one else in the crew yet.</p></div>';
+    h += '<div class="list" style="margin:0">' + others.map(function (x) {
+      var on = hide.indexOf(x.id) < 0;
+      return '<button class="row sharerow" data-act="share" data-id="' + x.id + '" role="switch" aria-checked="' + on + '">' + avatar(x) + '<div class="t"><b>' + esc(x.name) + "</b><small>" + (on ? "Can see your data" : "Can't see you") + '</small></div><span class="tog' + (on ? " on" : "") + '"><i></i></span></button>';
+    }).join("") + "</div>";
+    return h + "</div>";
+  }
+  function renderSettings(fromSync) {
+    var el = $("#panel"); if (!el) return;
+    if (fromSync && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    var u = me(); if (!u) return closeSheet();
+    var w = FC.weightStats(u), h = '<div class="grab"></div><div class="phead"><span class="hic big">' + ICON.gear + '</span><div><h2>Settings</h2><div class="tag">' + esc(u.name) + '</div></div><button class="x" data-act="close" aria-label="Close">×</button></div>';
     // Goals
     var st = dv("gStatus", u.status || "maintain");
     h += '<div class="card">' + head("target", "Goals", "", "goals") + '<div class="stack"><div class="seg">' + ["cut", "maintain", "bulk"].map(function (s) { return '<button class="' + (st === s ? "on" : "") + '" data-act="gstatus" data-v="' + s + '">' + STATUS[s] + "</button>"; }).join("") + "</div>"
       + '<div class="g3"><label class="f">Daily cal goal<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
- + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
+ + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
       + '<button class="btn pri wide" data-act="savegoals">Save goals</button></div></div>';
 
     // Profile and group
@@ -745,8 +802,11 @@
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + COLOURS.map(function (c) { return '<button aria-label="Colour" data-act="colour" data-v="' + c + '" style="width:30px;height:30px;border-radius:50%;border:3px solid ' + ((dv("pC", u.color) === c) ? "var(--text)" : "transparent") + ";background:" + c + '"></button>'; }).join("") + "</div>"
       + tip("profile", "Height, age and sex sharpen the burn estimates and the suggested goal.")
       + '<button class="btn pri wide" data-act="saveprofile">Save profile</button></div></div>';
-    h += '<div class="card">' + head("users", "Crew", "", "crew") + '<div class="stack"><button class="btn wide" data-act="invite">' + ICON.share + 'Share invite link</button>' + tip("crew", "Anyone with the link can join and see everyone. Only send it to the crew.")
-      + '<button class="btn ghost wide" data-act="switch">Switch person on this phone</button><button class="btn danger wide" data-act="leave">Delete my profile and data</button>'
+    h += sharingCard(u);
+    h += '<div class="card">' + head("lock", "Security") + '<div class="stack">' + (S.pinless ? '<p class="hint">PINs need the updated Google script.</p>' : '<button class="btn wide" data-act="changepin">' + ICON.lock + "Change my PIN</button>")
+      + '<button class="btn ghost wide" data-act="switch">Switch person on this phone</button></div></div>';
+    h += '<div class="card">' + head("users", "Crew", "", "crew") + '<div class="stack"><button class="btn wide" data-act="invite">' + ICON.share + 'Share invite link</button>' + tip("crew", "Anyone with the link can join the crew. Only send it to people you want in.")
+      + '<button class="btn danger wide" data-act="leave">Delete my profile and data</button>'
       + tip("crew", "Sync: " + esc(S.err ? "offline (" + S.err + ")" : S.lastSync ? "last synced " + new Date(S.lastSync).toLocaleTimeString("en-NZ", { hour: "numeric", minute: "2-digit" }) : "waiting") + (S.outbox.length ? ", " + S.outbox.length + " change(s) waiting to send" : "") + ". Workout estimates: " + (S.claude ? "Claude" : "built-in formula") + ".") + "</div></div>";
     el.innerHTML = h;
   }
@@ -760,10 +820,62 @@
   }
 
   /* ---------- Gate: invite + who are you ---------- */
+  /* ---------- PIN ---------- */
+  // Asks the server whether this person has a PIN yet. Old scripts without PINs just carry on.
+  function checkPin() {
+    S.pinChecked = true;
+    return call("login").then(function (r) {
+      if (r.nopin) { S.gate = "create"; S.pinBuf = ""; render(); }
+      else if (S.gate === "checking") { S.gate = null; render(); sync(); }
+    }).catch(function (e) {
+      if (/Unknown action/.test(e.message)) { S.pinless = true; if (S.gate) { S.gate = null; render(); } }
+      else if (e.pin) { S.gate = "enter"; S.pinBuf = ""; render(); }
+      else if (S.gate === "checking") { S.pinChecked = false; S.pinErr = e.message; render(); }
+    });
+  }
+  var PIN_TXT = {
+    checking: ["One moment", ""],
+    enter: ["Enter your PIN", ""],
+    create: ["Create a 4-digit PIN", "Stops anyone else opening the app as you. If you forget it, whoever set up the app can reset it."],
+    confirm: ["Type it again", ""],
+    "change-new": ["New PIN", ""],
+    "change-confirm": ["Type the new PIN again", ""]
+  };
+  function pinScreen() {
+    var u = me() || user(S.me) || { name: "You", color: COLOURS[0] }, t = PIN_TXT[S.gate] || PIN_TXT.enter, n = S.pinBuf.length;
+    var h = '<div class="wrap pinwrap"><div class="pinwho">' + avatar(u, true) + "<b>" + esc(u.name) + "</b></div><h2>" + t[0] + "</h2>";
+    if (S.gate === "checking") return h + '<p class="muted">Checking your sign-in...</p>' + (S.pinErr ? '<p class="bad">' + esc(S.pinErr) + '</p><button class="btn" data-act="pinretry">Try again</button>' : "") + "</div>";
+    h += '<div class="pindots' + (S.pinErr ? " shake" : "") + '">' + [0, 1, 2, 3].map(function (i) { return "<i" + (i < n ? ' class="on"' : "") + "></i>"; }).join("") + "</div>"
+      + '<p class="pinerr">' + esc(S.pinErr || t[1]) + "</p>"
+      + '<div class="keypad">' + ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "back"].map(function (k) {
+        return k === "" ? "<span></span>" : '<button data-act="pinkey" data-v="' + k + '"' + (k === "back" ? ' aria-label="Delete"' : "") + ">" + (k === "back" ? "⌫" : k) + "</button>";
+      }).join("") + "</div>";
+    h += /^change/.test(S.gate) ? '<button class="btn ghost" data-act="pincancel">Cancel</button>' : '<button class="lnk pinswitch" data-act="switch">Not ' + esc(u.name) + "? Switch person</button>";
+    return h + "</div>";
+  }
+  function pinDone(code) {
+    var g = S.gate;
+    if (g === "enter") {
+      var keep = S.pin; S.pin = code;
+      call("login").then(function () {
+        lsSet(LS.pin, code); S.gate = null; S.pinErr = ""; S.pinBuf = ""; S.pinChecked = true; render(); sync();
+      }).catch(function (e) { S.pin = keep; S.pinErr = e.message; S.pinBuf = ""; render(); });
+      return;
+    }
+    if (g === "create" || g === "change-new") { S.pinFirst = code; S.pinBuf = ""; S.pinErr = ""; S.gate = g === "create" ? "confirm" : "change-confirm"; render(); return; }
+    if (g === "confirm" || g === "change-confirm") {
+      if (code !== S.pinFirst) { S.pinErr = "Those didn't match. Start again."; S.pinBuf = ""; S.gate = g === "confirm" ? "create" : "change-new"; render(); return; }
+      call("setPin", { newPin: code }).then(function () {
+        S.pin = code; lsSet(LS.pin, code); S.gate = null; S.pinBuf = ""; S.pinErr = ""; S.pinChecked = true; toast(g === "confirm" ? "PIN set. Nobody else can open the app as you." : "PIN changed"); render(); sync();
+      }).catch(function (e) { S.pinErr = e.message; S.pinBuf = ""; render(); });
+    }
+  }
+
   function renderGate() {
     var g = $("#gate");
     if (!API) { g.innerHTML = '<div class="wrap"><h1>Fit <b>Crew</b></h1><p class="muted">The app isn\'t connected to its backend yet. Whoever set it up needs to add the web app URL to config.js.</p></div>'; g.classList.add("open"); return true; }
     if (!S.code) { g.innerHTML = '<div class="wrap"><h1>Fit <b>Crew</b></h1><p class="muted">Open this app from the invite link your mate sent you. It carries the crew\'s code.</p>' + (S.err ? '<p class="bad">' + esc(S.err) + "</p>" : "") + "</div>"; g.classList.add("open"); return true; }
+    if (S.me && S.gate) { g.innerHTML = pinScreen(); g.classList.add("open"); return true; }
     if (S.me && me()) { g.classList.remove("open"); return false; }
     var list = users();
     var h = '<div class="wrap"><h1>Fit <b>Crew</b></h1><p class="muted">Who are you?</p>';
@@ -788,7 +900,7 @@
     renderCrew();
     renderMe(fromSync);
     if (window.FCTrain) FCTrain.render(fromSync);
-    if (S.sheet) renderProfile(S.sheet);
+    if (S.sheet) renderProfile(S.sheet, fromSync);
   }
 
   /* ---------- Actions ---------- */
@@ -945,22 +1057,22 @@
       clearDraft(["wKg"]); toast("Weigh-in saved");
     },
     delweight: function () { var d = S.date; changeMe(function (u) { u.weights = (u.weights || []).filter(function (x) { return x[0] !== d; }); }); clearDraft(["wKg"]); },
-    gstatus: function (b) { S.draft.gStatus = b.dataset.v; renderMe(); },
+    gstatus: function (b) { S.draft.gStatus = b.dataset.v; render(); },
     suggest: function () {
-      var u = me(); S.draft.gKcal = String(FC.suggestGoal(Object.assign({}, u, { status: dv("gStatus", u.status) }), FC.weightStats(u).current)); renderMe();
+      var u = me(); S.draft.gKcal = String(FC.suggestGoal(Object.assign({}, u, { status: dv("gStatus", u.status) }), FC.weightStats(u).current)); render();
     },
     savegoals: function () {
       var k = Math.round(num("gKcal")); if (k < 800 || k > 8000) return toast("Goal should be between 800 and 8,000 cal");
       var st = dv("gStatus", me().status), p = Math.round(num("gP")), t = num("gT");
       changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; });
-      clearDraft(["gStatus", "gKcal", "gP", "gT"]); toast("Goals saved"); renderMe();
+      clearDraft(["gStatus", "gKcal", "gP", "gT"]); toast("Goals saved"); render();
     },
-    colour: function (b) { S.draft.pC = b.dataset.v; renderMe(); },
+    colour: function (b) { S.draft.pC = b.dataset.v; render(); },
     saveprofile: function () {
       var n = val("pName"); if (!n) return toast("Name needed");
       var sw = num("pW"), h = num("pH"), y = num("pY"), s = val("pS"), c = dv("pC", me().color);
       changeMe(function (u) { u.name = n.slice(0, 40); if (sw) u.startWeight = sw; u.heightCm = h || 0; u.birthYear = y || 0; u.sex = s; u.color = c; });
-      clearDraft(["pName", "pW", "pH", "pY", "pS", "pC"]); toast("Profile saved"); renderMe();
+      clearDraft(["pName", "pW", "pH", "pY", "pS", "pC"]); toast("Profile saved"); render();
     },
     invite: function () {
       var link = location.origin + location.pathname + "#g=" + encodeURIComponent(S.code);
@@ -968,17 +1080,35 @@
       else if (navigator.clipboard) navigator.clipboard.writeText(link).then(function () { toast("Invite link copied"); });
       else prompt("Copy the invite link", link);
     },
-    "switch": function () { S.me = ""; lsSet(LS.me, ""); S.draft = {}; render(); },
+    "switch": function () { S.me = ""; lsSet(LS.me, ""); S.pin = ""; lsSet(LS.pin, ""); S.gate = null; S.pinBuf = ""; S.pinErr = ""; S.pinChecked = false; S.draft = {}; closeSheet(); render(); sync(); },
+    pinkey: function (b) {
+      var v = b.dataset.v; S.pinErr = "";
+      if (v === "back") S.pinBuf = S.pinBuf.slice(0, -1); else if (S.pinBuf.length < 4) S.pinBuf += v;
+      if (navigator.vibrate) navigator.vibrate(15);
+      renderGate();
+      if (S.pinBuf.length === 4) { var c = S.pinBuf; setTimeout(function () { pinDone(c); }, 120); }
+    },
+    pinretry: function () { S.pinErr = ""; checkPin(); render(); },
+    pincancel: function () { S.gate = null; S.pinBuf = ""; S.pinErr = ""; render(); },
+    changepin: function () { closeSheet(); S.gate = "change-new"; S.pinBuf = ""; S.pinErr = ""; render(); },
+    settings: function () { openSheet("settings"); },
+    share: function (b) {
+      var id = b.dataset.id;
+      changeMe(function (u) { var h = u.hide || []; var i = h.indexOf(id); if (i >= 0) h.splice(i, 1); else h.push(id); u.hide = h; });
+    },
     leave: function () {
       var u = me(); if (!u) return;
       if (!confirm("Delete " + u.name + " and all their logs for everyone? This can't be undone.")) return;
       call("deleteUser", { userId: u.id }).then(function () {
         S.cache.users = S.cache.users.filter(function (x) { return x.id !== u.id; });
         S.outbox = S.outbox.filter(function (o) { return o.userId !== u.id && !(o.user && o.user.id === u.id); });
-        S.me = ""; lsSet(LS.me, ""); persist(); render(); toast("Profile deleted");
+        S.me = ""; lsSet(LS.me, ""); S.pin = ""; lsSet(LS.pin, ""); persist(); closeSheet(); render(); toast("Profile deleted");
       }).catch(function (e) { toast("Couldn't delete: " + e.message); });
     },
-    pick: function (b) { S.me = b.dataset.id; lsSet(LS.me, S.me); S.draft = {}; render(); goTab(0); },
+    pick: function (b) {
+      S.me = b.dataset.id; lsSet(LS.me, S.me); S.pin = ""; lsSet(LS.pin, ""); S.draft = {}; S.pinErr = ""; S.pinBuf = "";
+      S.gate = "checking"; S.pinChecked = false; render(); goTab(0); checkPin();
+    },
     nstatus: function (b) { S.draft.nStatus = b.dataset.v; renderGate(); },
     join: function () {
       var n = val("nName"), w = num("nW");
@@ -991,9 +1121,9 @@
         color: COLOURS.filter(function (c) { return used.indexOf(c) < 0; })[0] || COLOURS[users().length % COLOURS.length]
       };
       u.goalKcal = Math.round(num("nK")) || FC.suggestGoal(u, w);
-      upsertUser(u); S.me = u.id; lsSet(LS.me, u.id);
+      upsertUser(u); S.me = u.id; lsSet(LS.me, u.id); S.pin = ""; lsSet(LS.pin, "");
       queue({ action: "saveUser", user: u });
-      S.draft = {}; render(); goTab(1); celebrate(); toast("Welcome, " + u.name + ". Goal set to " + fmt(u.goalKcal) + " cal.");
+      S.draft = {}; S.gate = S.pinless ? null : "create"; S.pinBuf = ""; S.pinChecked = true; render(); goTab(1); celebrate(); toast("Welcome, " + u.name + ". Goal set to " + fmt(u.goalKcal) + " cal.");
     }
   };
 

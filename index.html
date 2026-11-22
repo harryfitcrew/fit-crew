@@ -252,6 +252,37 @@ textarea{resize:vertical;min-height:70px}
 .wavg .wn{font-size:12px;font-weight:600;color:var(--muted);background:var(--card2);border-radius:999px;padding:2px 8px}
 .wavg .wn.good{color:var(--good);background:var(--good-bg)} .wavg .wn.bad{color:var(--bad);background:var(--bad-bg)}
 .wavg small{margin-left:auto;color:var(--faint);font-size:11px}
+.seen{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--faint);font-weight:500}
+.seen i{width:7px;height:7px;border-radius:50%;background:var(--faint);flex-shrink:0}
+.seen.on{color:var(--good)}
+.seen.on i{background:var(--good);box-shadow:0 0 0 3px var(--good-bg)}
+/* Settings, sharing and PIN */
+.hbtns{display:flex;align-items:center;gap:8px}
+.gear{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;color:var(--text)}
+.gear svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.setbtn{margin-top:4px}
+.hic.big{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:rgba(var(--acc-rgb),.14);color:var(--accent)}
+.hic.big svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sharerow{width:100%;text-align:left;border:0;color:var(--text)}
+.tog{width:44px;height:26px;border-radius:13px;background:var(--card2);border:1px solid var(--line);position:relative;flex-shrink:0;transition:background .2s}
+.tog i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--faint);transition:transform .2s,background .2s}
+.tog.on{background:var(--accent);border-color:var(--accent)}
+.tog.on i{transform:translateX(18px);background:var(--accent-ink)}
+.pinwrap{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:30px}
+.pinwho{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
+.pinwho b{font-size:16px}
+.pinwrap h2{font:700 26px var(--hfont);text-transform:uppercase;letter-spacing:.03em;margin:0 0 18px}
+.pindots{display:flex;gap:16px;margin-bottom:10px}
+.pindots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--muted);transition:background .15s,border-color .15s}
+.pindots i.on{background:var(--accent);border-color:var(--accent);box-shadow:0 0 10px rgba(var(--acc-rgb),.6)}
+.pindots.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.pinerr{min-height:36px;font-size:13px;color:var(--muted);max-width:280px;margin:0 0 10px}
+.pindots.shake+.pinerr{color:var(--bad)}
+.keypad{display:grid;grid-template-columns:repeat(3,74px);gap:14px;margin-bottom:22px}
+.keypad button{height:74px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font:600 28px var(--hfont);color:var(--text);transition:transform .1s,background .1s}
+.keypad button:active{transform:scale(.92);background:rgba(var(--acc-rgb),.2)}
+.pinswitch{font-size:13px}
 /* Editing, saved and recent */
 .t.tap{cursor:pointer}
 .edit{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
@@ -428,6 +459,34 @@ textarea{resize:vertical;min-height:70px}
 .tp-row{display:grid;grid-template-columns:1fr auto;gap:0 6px;align-items:stretch}
 .tp-peek{width:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--muted);display:grid;place-items:center}
 .tp-peek.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* Suggestions, cardio, 1RMs */
+.sugg{display:flex;align-items:flex-start;gap:10px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+.sugg.up{border-left-color:var(--good)} .sugg.down{border-left-color:var(--warn)}
+.sugg .sic{color:var(--accent);margin-top:2px} .sugg.up .sic{color:var(--good)} .sugg.down .sic{color:var(--warn)}
+.sugg .sic .ti{width:18px;height:18px}
+.sugg>div{flex:1;min-width:0}
+.sugg b{font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+.sugg p{margin:2px 0 0;font-size:13px;color:var(--muted);line-height:1.35}
+.sugg .btn{align-self:center}
+.cardhero{display:grid;place-items:center;margin:14px auto 0;width:64px;height:64px;border-radius:50%;background:rgba(var(--acc-rgb),.14);color:var(--accent)}
+.cardhero .ti{width:32px;height:32px}
+.cfbox{display:flex;flex-direction:column;gap:10px;margin:14px 0 12px}
+.cf{grid-template-columns:repeat(auto-fit,minmax(90px,1fr))}
+.cf input{font:700 20px var(--hfont);text-align:center}
+.cfout{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;background:var(--surface);border-radius:12px;padding:10px 12px}
+.cfout b{font:700 30px var(--hfont);color:var(--accent)}
+.cfout span{color:var(--muted)}
+.cfout small{width:100%;color:var(--faint);font-size:12px}
+.cpick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.cpick .chip{display:inline-flex;align-items:center;gap:5px}
+.cmin{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);margin:-4px 0 10px}
+.cmin b{color:var(--text)}
+.ormgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.orm{background:var(--surface);border-radius:12px;padding:10px 8px;text-align:center;min-width:0}
+.orm b{display:block;font:700 24px var(--hfont)}
+.orm b small{font:500 11px var(--sans);color:var(--muted);margin-left:2px}
+.orm span{display:block;font-size:11px;color:var(--text);line-height:1.25;margin-top:2px}
+.orm em{display:block;font-style:normal;font-size:10px;color:var(--faint);margin-top:3px}
 /* Barcode scanning */
 .scanbtn{margin-bottom:12px}
 .scanned{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
@@ -491,7 +550,7 @@ h1 b{color:var(--accent)}
 <header class="top">
   <div class="brand">
     <h1>Fit <b>Crew</b></h1>
-    <button class="sync" id="sync" aria-label="Sync now"><i></i><span>Synced</span></button>
+    <div class="hbtns"><button class="sync" id="sync" aria-label="Sync now"><i></i><span>Synced</span></button><button class="gear" data-act="settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button></div>
   </div>
   <nav class="tabs" role="tablist">
     <span class="pill" id="pill"></span>
