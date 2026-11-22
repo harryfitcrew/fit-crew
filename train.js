@@ -370,8 +370,9 @@
     var c = T.cardio, type = c.type, min = num(c.min); if (!min) return A.toast("Add the minutes");
     var r = cardioMET(type, c), kc = cardioKcal(type, c), date = A.today(), id = uid(), name = CARDIO[type].n;
     var lift = { id: id, name: name, start: Date.now() - min * 60000, end: Date.now(), min: Math.round(min), effort: c.eff, kcal: kc, exs: [{ x: "cardio:" + type, n: name, cardio: { min: min, km: num(c.km), kmh: num(c.kmh), inc: num(c.inc), eff: c.eff, met: r.met, note: r.note, kcal: kc }, sets: [] }], pbs: [] };
+    A.changeMe(function (uu) { addStats(uu, lift, 1); });
     A.changeDay(date, function (d) { d.lifts = (d.lifts || []).concat([lift]); d.ex.push({ id: uid(), name: name, kcal: kc, min: Math.round(min), note: Math.round(min) + " min · " + r.note, src: "tracker", lift: id }); });
-    T.view = "home"; T.cardio = null; render(); A.celebrate(); A.toast(name + " saved. " + fmt(kc) + " cal added to today.");
+    T.view = "home"; T.cardio = null; render(); if (A.checkBadges) A.checkBadges(); A.celebrate(); A.toast(name + " saved. " + fmt(kc) + " cal added to today.");
   }
 
   /* ---------- Routine editor ---------- */
@@ -665,6 +666,7 @@
     A.changeMe(function (uu) {
       uu.pb = pbMap; uu.last = last;
       // Remember rest times changed during the workout in the saved workout
+      addStats(uu, lift, 1);
       var r = (uu.routines || []).filter(function (x) { return x.id === w.rid; })[0];
       if (r) r.items.forEach(function (it) { var e = w.exs.filter(function (z) { return z.x === it.x; })[0]; if (e && e.rest) it.rest = e.rest; });
     });
@@ -676,7 +678,20 @@
     });
     T.active = null; T.finish = null; T.overview = false; saveActive(); wake(false); render();
     A.celebrate();
-    A.toast(pbs.length ? pbs.length + " new PB" + (pbs.length > 1 ? "s" : "") + "! " + pbs.map(function (p) { return shortName(p.n); }).join(", ") : "Workout saved. " + fmt(kc) + " cal added to today.");
+    setTimeout(function () { if (A.checkBadges) A.checkBadges(); }, 0);
+    A.toast(pbs.length ? pbs.length + " new PB" + (pbs.length > 1 ? "s" : "") + "! " + pbs.map(function (p) { return shortName(p.n); }).join(", ") : "Workout saved. " + fmt(kc) + " cal added to today.", true);
+  }
+
+  // What a workout adds to the lifetime counters behind badges
+  function liftTotals(l) {
+    var t = { vol: 0, cmin: 0, pbs: (l.pbs || []).length };
+    l.exs.forEach(function (e) { if (e.cardio) t.cmin += +e.cardio.min || 0; (e.sets || []).forEach(function (x) { t.vol += (+x[0] || 0) * (+x[1] || 0); }); });
+    return t;
+  }
+  function addStats(uu, l, sign) {
+    uu.stats = uu.stats || (A.backfillStats ? A.backfillStats(uu) : { w: 0, vol: 0, pbs: 0, cmin: 0, hf: 0 });
+    var t = liftTotals(l), st = uu.stats;
+    st.w = Math.max(0, (+st.w || 0) + sign); st.vol = Math.max(0, Math.round((+st.vol || 0) + sign * t.vol)); st.pbs = Math.max(0, (+st.pbs || 0) + sign * t.pbs); st.cmin = Math.max(0, (+st.cmin || 0) + sign * t.cmin);
   }
 
   /* ---------- Deleting a logged workout ---------- */
@@ -711,6 +726,7 @@
     var u = me(), day = A.getDay(u.id, date), lift = ((day && day.lifts) || []).filter(function (l) { return l.id === id; })[0];
     if (!lift) return;
     A.changeMe(function (uu) {
+      addStats(uu, lift, -1);
       uu.pb = uu.pb || {}; uu.last = uu.last || {};
       lift.exs.forEach(function (e) {
         var cur = uu.pb[e.x];

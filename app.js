@@ -108,6 +108,10 @@
     gear: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>',
     lock: '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    drop: '<svg viewBox="0 0 24 24"><path d="M12 3s6 6.6 6 11a6 6 0 01-12 0c0-4.4 6-11 6-11z"/></svg>',
+    ruler: '<svg viewBox="0 0 24 24"><path d="M3 16.5L16.5 3 21 7.5 7.5 21z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg>',
+    medal: '<svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="6"/><path d="M8.5 3h7l-2 6.5h-3zM12 12.5l.9 1.8 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/></svg>',
+    run: '<svg viewBox="0 0 24 24"><circle cx="14" cy="4.5" r="2"/><path d="M7 21l3-6 3 2v5M5.5 12l3-4 4 1 3 4 3 1M10 15l2-6"/></svg>',
     check2: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     equals: '<svg viewBox="0 0 24 24"><path d="M6 9h12M6 15h12"/></svg>',
     plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
@@ -198,6 +202,7 @@
         S.syncing = false;
         autoDiary();
         render(true);
+        checkBadges();
       });
   }
 
@@ -447,6 +452,7 @@
       + "</div>";
     h += '<div class="stats"><div class="stat"><span>Streak</span><b>' + st + ' d</b></div><div class="stat"><span>Week pts</span><b>' + wk.points + '</b></div><div class="stat"><span>Workouts</span><b>' + wk.workouts + "</b></div></div>";
     if (window.FCTrain) h += FCTrain.profileHtml(u);
+    h += badgesCard(u, false);
     h += '<div class="card">' + head("scale", "Weight") + '<div class="stats"><div class="stat"><span>Start</span><b>' + (w.start ? kg(w.start) : "–") + '</b></div><div class="stat"><span>Now</span><b>' + (w.current ? kg(w.current) : "–") + '</b></div><div class="stat"><span>Change</span><b class="' + (w.progress > 0 ? "good" : w.progress < 0 ? "bad" : "") + '">' + (w.start ? signed(w.change, 1) : "–") + "</b></div></div>"
       + '<div class="chart">' + lineChart([{ color: u.color, pts: weightPts(u) }], { label: "Weight over time", target: w.target || 0, extra: w.target ? [w.target] : [], empty: "No weigh-ins yet." }) + "</div>"
       + '<p class="hint" style="margin-top:8px">' + (w.target ? "Target " + kg(w.target) + " kg, " + kg(Math.abs(w.toGo)) + " kg to go. " : "") + (bmi ? "BMI " + bmi.toFixed(1) + "." : "") + "</p></div>";
@@ -517,6 +523,131 @@
       return '<div class="mr"><span class="md" style="background:' + MAC[k] + '"></span><span class="mn">' + name + "</span><b>" + fmt(g) + 'g</b><span class="mx">' + (goal ? "/ " + goal + "g" : pct + "%") + '</span><div class="mb"><i style="width:' + (goal ? pct : pct) + "%;background:" + MAC[k] + '"></i></div></div>';
     };
     return '<div class="macblock">' + donut + '<div class="mrows">' + row("p", "Protein", ft.p, pg) + row("c", "Carbs", ft.c, 0) + row("f", "Fat", ft.f, 0) + "</div></div>";
+  }
+
+  /* ---------- Water ---------- */
+  function waterGoal(u) { return +u.waterGoal || 2000; }
+  function waterCard(u, day) {
+    var ml = +(day && day.water) || 0, goal = waterGoal(u), glasses = Math.max(1, Math.round(goal / 250)), full = Math.floor(ml / 250);
+    var h = '<div class="card">' + head("drop", "Water", fmt(ml) + " / " + fmt(goal) + " ml") + '<div class="glasses">';
+    for (var i = 0; i < Math.max(glasses, full); i++) h += '<button class="glass' + (i < full ? " on" : "") + (i >= glasses ? " extra" : "") + '" data-act="glass" data-i="' + i + '" aria-label="' + ((i + 1) * 250) + ' ml">' + ICON.drop + "</button>";
+    h += '</div><div class="wbar"><i style="width:' + Math.min(100, ml / goal * 100) + '%"></i></div>'
+      + '<div class="btns"><button class="btn sm" data-act="water" data-v="250">+250 ml</button><button class="btn sm" data-act="water" data-v="500">+500 ml</button><button class="btn ghost sm" data-act="water" data-v="-250"' + (ml ? "" : " disabled") + ">−250</button></div>";
+    return h + "</div>";
+  }
+  function setWater(ml) {
+    var u = me(), before = +((getDay(u.id, S.date) || {}).water) || 0, goal = waterGoal(u);
+    ml = Math.max(0, Math.min(10000, Math.round(ml)));
+    changeDay(S.date, function (d) { d.water = ml; });
+    if (before < goal && ml >= goal) { celebrate(); toast("Water goal hit. Nice."); }
+  }
+
+  /* ---------- Measurements (private: the script only sends them back to you) ---------- */
+  var MEAS = [["waist", "Waist"], ["chest", "Chest"], ["hips", "Hips"], ["arm", "Arms"], ["thigh", "Thighs"], ["neck", "Neck"], ["bf", "Body fat"]];
+  function measList(u) { return ((u.priv || {}).meas || []).slice().sort(function (a, b) { return a[0] < b[0] ? -1 : 1; }); }
+  function measCard(u, d) {
+    var list = measList(u), unit = function (k) { return k === "bf" ? "%" : " cm"; };
+    var h = '<div class="card">' + head("ruler", "Measurements", ICON.lock + "Only you", "meas")
+      + tip("meas", "Measurements are private. Your Google script strips them out before sending your profile to anyone else, so the crew never receives them, whatever your sharing settings. (Whoever owns the Google Sheet can still see the raw data there.)");
+    var latest = {}, first = {};
+    list.forEach(function (e) { MEAS.forEach(function (m) { var v = +e[1][m[0]]; if (v) { latest[m[0]] = v; if (first[m[0]] == null) first[m[0]] = v; } }); });
+    var have = MEAS.filter(function (m) { return latest[m[0]]; });
+    if (have.length) {
+      h += '<div class="mgrid">' + have.map(function (m) {
+        var ch = Math.round((latest[m[0]] - first[m[0]]) * 10) / 10;
+        return '<div class="mt"><span>' + m[1] + "</span><b>" + latest[m[0]] + "<small>" + unit(m[0]) + "</small></b>" + (ch ? '<em class="' + (ch < 0 ? "dn" : "up") + '">' + (ch > 0 ? "▲ +" : "▼ ") + ch + "</em>" : "<em>first</em>") + "</div>";
+      }).join("") + "</div>";
+      var sel = S.measSel && latest[S.measSel] ? S.measSel : have[0][0];
+      var pts = list.filter(function (e) { return +e[1][sel]; }).map(function (e) { return [e[0], +e[1][sel]]; });
+      h += '<div class="chips mchips2">' + have.map(function (m) { return '<button class="chip' + (m[0] === sel ? " on" : "") + '" data-act="meassel" data-v="' + m[0] + '">' + m[1] + "</button>"; }).join("") + "</div>";
+      if (pts.length > 1) h += '<div class="chart">' + lineChart([{ color: "var(--accent)", pts: pts }], { label: "Measurement", empty: "" }) + "</div>";
+    } else h += '<p class="empty">Track waist, chest, arms and more over time. Measure every 2 to 4 weeks, same time of day.</p>';
+    var cur = (list.filter(function (e) { return e[0] === d; })[0] || [d, {}])[1];
+    h += '<div class="slab2">On ' + esc(dayLabel(d).toLowerCase()) + '</div><div class="g3 mform">' + MEAS.map(function (m) {
+      return '<label class="f">' + m[1] + (m[0] === "bf" ? " %" : " cm") + '<input id="ms_' + m[0] + '" inputmode="decimal" value="' + esc(dv("ms_" + m[0], cur[m[0]] || "")) + '"></label>';
+    }).join("") + '</div><div class="btns" style="margin-top:10px"><button class="btn pri" style="flex:1" data-act="meassave">Save measurements</button>' + (Object.keys(cur).length ? '<button class="btn ghost" data-act="measdel" aria-label="Remove">×</button>' : "") + "</div>";
+    return h + "</div>";
+  }
+
+  /* ---------- Badges ----------
+   * Lifetime counters live in profile.stats (workouts, volume, PBs, cardio minutes, high fives), so they keep
+   * counting past the 10 weeks each phone holds. Once earned, a badge is kept in profile.badges for good. */
+  var BADGES = [
+    { id: "first", n: "First rep", d: "Log a workout in the tracker", ic: "dumbbell", t: 1, k: "w", g: 1 },
+    { id: "w10", n: "Regular", d: "10 workouts", ic: "dumbbell", t: 1, k: "w", g: 10 },
+    { id: "w25", n: "Committed", d: "25 workouts", ic: "dumbbell", t: 2, k: "w", g: 25 },
+    { id: "w50", n: "Gym rat", d: "50 workouts", ic: "dumbbell", t: 3, k: "w", g: 50 },
+    { id: "w100", n: "Centurion", d: "100 workouts", ic: "dumbbell", t: 4, k: "w", g: 100 },
+    { id: "pb1", n: "PB breaker", d: "Beat a personal best", ic: "trophy", t: 1, k: "pbs", g: 1 },
+    { id: "pb10", n: "Record setter", d: "10 PBs", ic: "trophy", t: 2, k: "pbs", g: 10 },
+    { id: "pb25", n: "Unstoppable", d: "25 PBs", ic: "trophy", t: 3, k: "pbs", g: 25 },
+    { id: "vol10", n: "10 tonnes", d: "Lift 10,000 kg in total", ic: "chart", t: 1, k: "vol", g: 10000 },
+    { id: "vol100", n: "100 tonnes", d: "Lift 100,000 kg in total", ic: "chart", t: 3, k: "vol", g: 100000 },
+    { id: "st3", n: "On a roll", d: "3 days on track in a row", ic: "flame", t: 1, k: "streak", g: 3 },
+    { id: "st7", n: "Week warrior", d: "7 days on track in a row", ic: "flame", t: 2, k: "streak", g: 7 },
+    { id: "st30", n: "Iron will", d: "30 days on track in a row", ic: "flame", t: 4, k: "streak", g: 30 },
+    { id: "log7", n: "Logger", d: "Log food 7 days in a row", ic: "utensils", t: 1, k: "logStreak", g: 7 },
+    { id: "log30", n: "Diary devotee", d: "Log food 30 days in a row", ic: "utensils", t: 3, k: "logStreak", g: 30 },
+    { id: "h2o", n: "Hydrated", d: "Hit your water goal 7 days in a row", ic: "drop", t: 2, k: "waterStreak", g: 7 },
+    { id: "cardio", n: "Cardio king", d: "300 minutes of cardio", ic: "run", t: 2, k: "cmin", g: 300 },
+    { id: "hf10", n: "Hype man", d: "Send 10 high fives", ic: "hand", t: 1, k: "hf", g: 10 },
+    { id: "kg2", n: "On the move", d: "2 kg towards your goal", ic: "scale", t: 2, k: "kgGoal", g: 2 },
+    { id: "target", n: "Goal getter", d: "Reach your target weight", ic: "target", t: 4, k: "atTarget", g: 1 }
+  ];
+  var TIER = ["", "bronze", "silver", "gold", "elite"];
+  function dayStreak(u, test) { var n = 0, d = today(); if (!test(getDay(u.id, d))) d = FC.addDays(d, -1); while (n < 70 && test(getDay(u.id, d))) { n++; d = FC.addDays(d, -1); } return n; }
+  function badgeValues(u) {
+    var st = u.stats || {}, w = FC.weightStats(u), goal = waterGoal(u), start = +u.startWeight || w.start || 0, now = w.current || start;
+    var kgGoal = !start ? 0 : u.status === "bulk" ? now - start : u.status === "cut" ? start - now : 0;
+    return {
+      w: +st.w || 0, pbs: +st.pbs || 0, vol: +st.vol || 0, cmin: +st.cmin || 0, hf: +st.hf || 0,
+      streak: FC.streak(u, getDay, today(), evening()),
+      logStreak: dayStreak(u, function (d) { return FC.foodTotals(d).kcal > 0; }),
+      waterStreak: dayStreak(u, function (d) { return (+(d && d.water) || 0) >= goal; }),
+      kgGoal: Math.max(0, Math.round(kgGoal * 10) / 10),
+      atTarget: u.targetWeight && now && ((u.status === "cut" && now <= u.targetWeight) || (u.status === "bulk" && now >= u.targetWeight)) ? 1 : 0
+    };
+  }
+  // Counters for people who logged before badges existed: count what's on the phone once
+  function backfillStats(u) {
+    var st = { w: 0, vol: 0, pbs: 0, cmin: 0, hf: 0 };
+    Object.keys(S.cache.days).forEach(function (k) {
+      if (k.split("|")[0] !== u.id) return;
+      (S.cache.days[k].lifts || []).forEach(function (l) {
+        st.w++; st.pbs += (l.pbs || []).length;
+        l.exs.forEach(function (e) { if (e.cardio) st.cmin += +e.cardio.min || 0; (e.sets || []).forEach(function (x) { st.vol += (+x[0] || 0) * (+x[1] || 0); }); });
+      });
+    });
+    st.hf = S.cache.kudos.filter(function (k) { return k.from === u.id; }).length;
+    st.pbs = Math.max(st.pbs, Object.keys(u.pb || {}).filter(function (id) { var p = u.pb[id]; return p.wnew || p.e1new || p.rnew; }).length);
+    return st;
+  }
+  function bump(field, by) { changeMe(function (u) { u.stats = u.stats || backfillStats(u); u.stats[field] = Math.max(0, (+u.stats[field] || 0) + by); }); }
+  var badgeBusy = false;
+  function checkBadges() {
+    var u = me(); if (!u || badgeBusy || S.gate) return;
+    var x = clone(u), changed = false;
+    if (!x.stats) { x.stats = backfillStats(x); changed = true; }
+    var v = badgeValues(x), got = x.badges || {}, fresh = [];
+    BADGES.forEach(function (b) { if (!got[b.id] && v[b.k] >= b.g) { got[b.id] = today(); fresh.push(b); } });
+    if (!fresh.length && !changed) return;
+    x.badges = got; badgeBusy = true;
+    upsertUser(x); queue({ action: "saveUser", user: x });
+    setTimeout(function () { badgeBusy = false; }, 0);
+    if (fresh.length) { celebrate(); toast(fresh.length === 1 ? "Badge unlocked: " + fresh[0].n : fresh.length + " badges unlocked: " + fresh.map(function (b) { return b.n; }).join(", "), true); render(true); }
+  }
+  function badgeTile(b, on, prog) {
+    return '<div class="bdg ' + TIER[b.t] + (on ? " on" : "") + '"><span class="bic">' + ICON[b.ic] + "</span><b>" + esc(b.n) + "</b><small>" + esc(b.d) + "</small>"
+      + (!on && prog != null ? '<div class="bprog"><i style="width:' + Math.min(100, prog * 100) + '%"></i></div>' : "") + "</div>";
+  }
+  function badgesCard(u, mine) {
+    var got = u.badges || {}, earned = BADGES.filter(function (b) { return got[b.id]; });
+    if (!mine) return earned.length ? '<div class="card">' + head("medal", "Badges", earned.length + " / " + BADGES.length) + '<div class="bgrid">' + earned.map(function (b) { return badgeTile(b, true); }).join("") + "</div></div>" : "";
+    var v = badgeValues(u), next = BADGES.filter(function (b) { return !got[b.id]; }).map(function (b) { return { b: b, p: Math.min(0.99, v[b.k] / b.g) }; }).sort(function (a, b) { return b.p - a.p; }).slice(0, 3);
+    var h = '<div class="card">' + head("medal", "Badges", earned.length + " / " + BADGES.length, "badges");
+    h += earned.length ? '<div class="bgrid">' + earned.map(function (b) { return badgeTile(b, true); }).join("") + "</div>" : '<p class="empty">None yet. Your first one is close.</p>';
+    if (next.length) h += '<div class="slab2">Next up</div><div class="bgrid">' + next.map(function (o) { return badgeTile(o.b, false, o.p); }).join("") + "</div>";
+    return h + tip("badges", "Badges are earned from your workouts, PBs, streaks, food logging, water, cardio, high fives and weight progress. Once earned they're yours for good, and the crew can see them on your profile.") + "</div>";
   }
 
   /* ---------- Me page ---------- */
@@ -739,6 +870,7 @@
       + '<button class="btn pri wide" data-act="addfood">Add food</button></div></div>';
 
     if (d === t) h += ideasCard(u, a, ft);
+    h += waterCard(u, day);
 
     // Exercise
     var ex = day.ex || [];
@@ -769,6 +901,8 @@
       + '<div class="chart">' + lineChart([{ color: u.color, pts: weightPts(u) }], { label: "My weight", target: w.target || 0, extra: w.target ? [w.target] : [], empty: "Log a weigh-in to start the chart." }) + "</div>"
       + '<div class="g2" style="margin-top:12px"><label class="f">Weight on ' + esc(dayLabel(d).toLowerCase()) + ' (kg)<input id="wKg" inputmode="decimal" value="' + esc(dv("wKg", wt ? wt[1] : "")) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addweight">Save</button>' + (wt ? '<button class="btn ghost" data-act="delweight" aria-label="Remove weigh-in">×</button>' : "") + "</div></div></div>";
 
+    h += measCard(u, d);
+    h += badgesCard(u, true);
     h += '<button class="btn wide setbtn" data-act="settings">' + ICON.gear + "Settings: profile, goals, sharing, PIN</button>";
     el.innerHTML = h;
   }
@@ -791,6 +925,7 @@
     // Goals
     var st = dv("gStatus", u.status || "maintain");
     h += '<div class="card">' + head("target", "Goals", "", "goals") + '<div class="stack"><div class="seg">' + ["cut", "maintain", "bulk"].map(function (s) { return '<button class="' + (st === s ? "on" : "") + '" data-act="gstatus" data-v="' + s + '">' + STATUS[s] + "</button>"; }).join("") + "</div>"
+      + '<label class="f">Water goal (ml a day)<input id="gWater" inputmode="numeric" value="' + esc(dv("gWater", u.waterGoal || 2000)) + '"></label>'
       + '<div class="g3"><label class="f">Daily cal goal<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
  + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
       + '<button class="btn pri wide" data-act="savegoals">Save goals</button></div></div>';
@@ -917,6 +1052,7 @@
       setKudos(S.me, to, t, on); persist();
       queue({ action: "kudos", from: S.me, to: to, date: t, on: on });
       if (on) { celebrate(b); toast("High five sent to " + (user(to) || {}).name); }
+      bump("hf", on ? 1 : -1);
       render();
     },
     day: function (b) { var n = FC.addDays(S.date, +b.dataset.v); if (n <= today()) { S.date = n; S.est = null; S.edit = null; clearDraft(["wKg", "eK"]); renderMe(); } },
@@ -970,6 +1106,17 @@
       changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, src: "barcode", code: p.code }); });
       S.scan = null; delete S.draft.sG; renderMe();
     },
+    water: function (b) { var cur = +((getDay(S.me, S.date) || {}).water) || 0; setWater(cur + +b.dataset.v); },
+    glass: function (b) { var i = +b.dataset.i, cur = +((getDay(S.me, S.date) || {}).water) || 0, full = Math.floor(cur / 250); setWater(i + 1 === full ? i * 250 : (i + 1) * 250); },
+    meassel: function (b) { S.measSel = b.dataset.v; renderMe(); },
+    meassave: function () {
+      var d = S.date, vals = {};
+      MEAS.forEach(function (m) { var v = num("ms_" + m[0]); if (v > 0 && v < (m[0] === "bf" ? 70 : 300)) vals[m[0]] = Math.round(v * 10) / 10; });
+      if (!Object.keys(vals).length) return toast("Enter at least one measurement");
+      changeMe(function (u) { u.priv = u.priv || {}; u.priv.meas = (u.priv.meas || []).filter(function (e) { return e[0] !== d; }).concat([[d, vals]]); });
+      clearDraft(MEAS.map(function (m) { return "ms_" + m[0]; })); toast("Measurements saved. Only you can see them.");
+    },
+    measdel: function () { var d = S.date; changeMe(function (u) { if (u.priv && u.priv.meas) u.priv.meas = u.priv.meas.filter(function (e) { return e[0] !== d; }); }); clearDraft(MEAS.map(function (m) { return "ms_" + m[0]; })); },
     info: function (b) { var k = b.dataset.k; S.info[k] = !S.info[k]; render(); },
     edit: function (b) {
       var k = b.dataset.k, i = +b.dataset.i, e = ((getDay(S.me, S.date) || {})[k] || [])[i]; if (!e) return;
@@ -1064,8 +1211,9 @@
     savegoals: function () {
       var k = Math.round(num("gKcal")); if (k < 800 || k > 8000) return toast("Goal should be between 800 and 8,000 cal");
       var st = dv("gStatus", me().status), p = Math.round(num("gP")), t = num("gT");
-      changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; });
-      clearDraft(["gStatus", "gKcal", "gP", "gT"]); toast("Goals saved"); render();
+      var wg = Math.round(num("gWater"));
+      changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; if (wg >= 500 && wg <= 8000) u.waterGoal = wg; });
+      clearDraft(["gStatus", "gKcal", "gP", "gT", "gWater"]); toast("Goals saved"); render();
     },
     colour: function (b) { S.draft.pC = b.dataset.v; render(); },
     saveprofile: function () {
@@ -1165,10 +1313,14 @@
   }, { passive: true });
 
   /* ---------- Feedback ---------- */
-  function toast(msg) {
+  // Messages queue up so a "badge unlocked" doesn't wipe out a "new PB" shown a moment earlier
+  var toastQ = [];
+  function toast(msg, important) {
+    if (toast.busy && (important || toastQ.length < 2) && toast.busyImportant) { toastQ.push(msg); return; }
     clearTimeout(toast.t);
+    toast.busy = true; toast.busyImportant = !!important;
     $("#toast").innerHTML = "<div>" + esc(msg) + "</div>";
-    toast.t = setTimeout(function () { $("#toast").innerHTML = ""; }, 2600);
+    toast.t = setTimeout(function () { $("#toast").innerHTML = ""; toast.busy = false; toast.busyImportant = false; if (toastQ.length) toast(toastQ.shift(), true); }, 2600);
   }
   function celebrate(fromEl) {
     if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -1194,7 +1346,7 @@
 
   /* ---------- Workout tracker (train.js) ---------- */
   if (window.FCTrain) FCTrain.init({ S: S, FC: FC, me: me, user: user, getDay: getDay, changeDay: changeDay, changeMe: changeMe, toast: toast, celebrate: celebrate,
-    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip });
+    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip, checkBadges: function () { setTimeout(checkBadges, 50); }, backfillStats: backfillStats });
 
   /* ---------- Start ---------- */
   (function readHash() {
