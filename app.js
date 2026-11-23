@@ -480,7 +480,7 @@
   var MAC = { p: "var(--pro)", c: "var(--carb)", f: "var(--fat)" };
   function macText(e) { return e.p || e.c || e.f ? '<small class="mac"><em class="p">' + fmt(e.p) + 'P</em><em class="c">' + fmt(e.c) + 'C</em><em class="f">' + fmt(e.f) + "F</em></small>" : ""; }
   function macBar(p, c, f) { var t = p * 4 + c * 4 + f * 9; if (!t) return ""; return '<span class="mbar"><i style="flex:' + p * 4 + ";background:" + MAC.p + '"></i><i style="flex:' + c * 4 + ";background:" + MAC.c + '"></i><i style="flex:' + f * 9 + ";background:" + MAC.f + '"></i></span>'; }
-  var FOOD_IC = { barcode: "barcode", claude: "spark", saved: "star", idea: "bulb", diary: "cal" }, EX_IC = { tracker: "dumbbell", saved: "star", estimate: "spark", manual: "watch" };
+  var FOOD_IC = { barcode: "barcode", claude: "spark", saved: "star", idea: "bulb", diary: "cal" }, EX_IC = { tracker: "dumbbell", cardio: "run", saved: "star", estimate: "spark", manual: "watch" };
   function rowIcon(ic, cls) { return '<span class="ricon ' + (cls || "") + '">' + ICON[ic] + "</span>"; }
 
   function summaryCard(u, a, ft) {
@@ -617,7 +617,7 @@
       if (k.split("|")[0] !== u.id) return;
       (S.cache.days[k].lifts || []).forEach(function (l) {
         st.w++; st.pbs += (l.pbs || []).length;
-        l.exs.forEach(function (e) { if (e.cardio) st.cmin += +e.cardio.min || 0; (e.sets || []).forEach(function (x) { st.vol += (+x[0] || 0) * (+x[1] || 0); }); });
+        l.exs.forEach(function (e) { if (e.cardio) st.cmin += +e.cardio.min || 0; if (!e.t) (e.sets || []).forEach(function (x) { st.vol += (+x[0] || 0) * (+x[1] || 0); }); });
       });
     });
     st.hf = S.cache.kudos.filter(function (k) { return k.from === u.id; }).length;
@@ -826,8 +826,9 @@
       h += '<label class="f">Describe a meal or snap a photo<textarea id="mText" placeholder="e.g. 180 g chicken breast, 120 g cooked rice, 1 tbsp olive oil">' + esc(dv("mText", "")) + "</textarea></label>"
         + photoNote()
         + (S.mealImg ? '<div class="mealimg"><img src="' + S.mealImg + '" alt="Meal photo"><button class="x" data-act="mealnoimg" aria-label="Remove photo">×</button></div>' : "")
-        + '<div class="btns"><label class="btn' + (S.mealBusy || photosLeft() === 0 ? " dis" : "") + '">' + ICON.camera + "Camera" + '<input type="file" id="mPhoto" accept="image/*" capture="environment" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
-        + '<label class="btn' + (S.mealBusy || photosLeft() === 0 ? " dis" : "") + '">' + ICON.gallery + "Gallery" + '<input type="file" id="mPhotoLib" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label></div>"
+        + (S.photoBusy ? '<p class="hint pleft">' + ICON.camera + "Processing photo...</p>" : "")
+        + '<div class="btns"><button class="btn" data-act="photo" data-v="cam"' + (S.mealBusy || S.photoBusy || photosLeft() === 0 ? " disabled" : "") + ">" + ICON.camera + "Camera</button>"
+        + '<button class="btn" data-act="photo" data-v="lib"' + (S.mealBusy || S.photoBusy || photosLeft() === 0 ? " disabled" : "") + ">" + ICON.gallery + "Gallery</button></div>"
         + '<div class="btns"><button class="btn pri" style="flex:1" data-act="meal"' + (S.mealBusy ? " disabled" : "") + ">" + ICON.spark + (S.mealBusy ? "Asking Claude..." : "Estimate with Claude") + "</button></div>"
         + tip("food", "Weights give the best answer. Photos are a rough guess, so check before adding.");
     }
@@ -850,6 +851,10 @@
   }
 
   function renderMe(fromSync) {
+    renderMeOnly(fromSync);
+    if (window.FCTrain) FCTrain.render(fromSync);
+  }
+  function renderMeOnly(fromSync) {
     var el = $("#me"); if (!el) return;
     if (fromSync && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return; // don't wipe typing
     var u = me(); if (!u) { el.innerHTML = ""; return; }
@@ -886,28 +891,13 @@
     if (d === t) h += ideasCard(u, a, ft);
     h += waterCard(u, day);
 
-    // Exercise
+    // Exercise: summary only. Logging and editing live on the Train page.
     var ex = day.ex || [];
-    h += '<div class="card">' + head("flame", "Exercise", fmt(a.burned) + " cal burned", "ex");
-    h += ex.length ? '<div class="list">' + ex.map(function (e, i) {
-      if (S.edit && S.edit.kind === "ex" && S.edit.i === i) return editForm("ex", e, i);
-      return '<div class="row">' + rowIcon(EX_IC[e.src] || "flame", "ex") + '<div class="t tap" data-act="edit" data-k="ex" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name) + "</b><small>" + esc(e.note || (e.src === "manual" ? "Entered by hand" : "Tap to edit")) + '</small></div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delex" data-i="' + i + '" aria-label="Remove">×</button></div>';
-    }).join("") + "</div>" : '<p class="empty">No workouts logged.</p>';
-    h += quickChips("ex", u);
-    h += '<div class="stack"><label class="f">Describe it<textarea id="eText" placeholder="e.g. 45 min incline walk at 8% and 5.5 km/h">' + esc(dv("eText", "")) + "</textarea></label>";
-    if (S.est) {
-      var tot = 0;
-      h += '<div class="est"><b>Estimate</b>' + S.est.activities.map(function (x) {
-        var c = FC.exerciseCal(x.met, x.minutes, bodyOf(u)); tot += c;
-        return '<div class="a"><div>' + esc(x.name) + " · " + fmt(x.minutes) + " min<small>MET " + x.met + " · " + esc(x.note) + '</small></div><b class="num">' + fmt(c) + "</b></div>";
-      }).join("") + (S.est.assumptions ? '<p class="hint">' + esc(S.est.assumptions) + "</p>" : "")
-        + tip("ex", "Net calories above resting, using your weight, height, age and sex. Got a watch reading? Type it below to override.")
-        + '<div class="g2"><label class="f">Calories to log<input id="eK" inputmode="numeric" value="' + esc(dv("eK", tot)) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addest">Log it</button><button class="btn ghost" data-act="clearest" aria-label="Discard">×</button></div></div></div>';
-    } else {
-      h += '<div class="btns"><button class="btn pri" style="flex:1" data-act="estimate">' + ICON.spark + (S.claude ? "Estimate with Claude" : "Estimate") + '</button></div>' + tip("ex", "Or skip the estimate: type the calories from your watch and add.")
-        + '<div class="g2"><label class="f">Calories (watch)<input id="eK" inputmode="numeric" value="' + esc(dv("eK", "")) + '"></label><div style="display:flex;align-items:flex-end"><button class="btn wide" data-act="addmanual">Add</button></div></div>';
-    }
-    h += "</div></div>";
+    h += '<div class="card">' + head("flame", "Exercise", fmt(a.burned) + " cal burned");
+    h += ex.length ? '<div class="list">' + ex.map(function (e) {
+      return '<div class="row">' + rowIcon(EX_IC[e.src] || "flame", "ex") + '<div class="t"><b>' + esc(e.name) + "</b><small>" + esc(e.note || "") + '</small></div><span class="k">' + fmt(e.kcal) + "</span></div>";
+    }).join("") + "</div>" : '<p class="empty">No exercise logged.</p>';
+    h += '<button class="btn wide" data-act="gotrain">' + ICON.dumbbell + "Log or edit on Train</button></div>";
 
     // Weight
     var wt = (u.weights || []).filter(function (x) { return x[0] === d; })[0];
@@ -920,6 +910,36 @@
     h += '<button class="btn wide setbtn" data-act="settings">' + ICON.gear + "Settings: profile, goals, sharing, PIN</button>";
     el.innerHTML = h;
   }
+  /* ---------- Exercise pieces shown on the Train page (always for the day picked with the date arrows) ---------- */
+  function exListHtml(u) {
+    var d = S.date, ex = ((getDay(u.id, d) || {}).ex) || [];
+    var h = ex.length ? '<div class="list">' + ex.map(function (e, i) {
+      if (S.edit && S.edit.kind === "ex" && S.edit.i === i) return editForm("ex", e, i);
+      return '<div class="row">' + rowIcon(EX_IC[e.src] || "flame", "ex") + '<div class="t tap" data-act="edit" data-k="ex" data-i="' + i + '" role="button" tabindex="0"><b>' + esc(e.name) + "</b><small>" + esc(e.note || (e.src === "manual" ? "Entered by hand" : "Tap to edit")) + '</small></div><span class="k">' + fmt(e.kcal) + '</span><button class="x" data-act="delex" data-i="' + i + '" aria-label="Remove">×</button></div>';
+    }).join("") + "</div>" : '<p class="empty">Nothing logged ' + (d === today() ? "today" : "this day") + ".</p>";
+    return h + quickChips("ex", u);
+  }
+  function exLogHtml(mode) {
+    var u = me(), h = "";
+    if (mode === "watch") {
+      return '<div class="stack"><label class="f">What was it (optional)<input id="eName" placeholder="e.g. Football training" value="' + esc(dv("eName", "")) + '"></label>'
+        + '<label class="f">Calories from your watch<input id="eK" inputmode="numeric" value="' + esc(dv("eK", "")) + '"></label>'
+        + '<button class="btn pri wide" data-act="addmanual">' + ICON.check2 + "Add</button></div>";
+    }
+    h += '<div class="stack"><label class="f">Describe it<textarea id="eText" placeholder="e.g. 45 min incline walk at 8% and 5.5 km/h, then 20 min swim">' + esc(dv("eText", "")) + "</textarea></label>";
+    if (S.est) {
+      var tot = 0;
+      h += '<div class="est"><b>Estimate</b>' + S.est.activities.map(function (x) {
+        var c = FC.exerciseCal(x.met, x.minutes, bodyOf(u)); tot += c;
+        return '<div class="a"><div>' + esc(x.name) + " · " + fmt(x.minutes) + " min<small>MET " + x.met + " · " + esc(x.note) + '</small></div><b class="num">' + fmt(c) + "</b></div>";
+      }).join("") + (S.est.assumptions ? '<p class="hint">' + esc(S.est.assumptions) + "</p>" : "")
+        + tip("ex", "Net calories above resting, using your weight, height, age and sex. Got a watch reading? Type it below to override.")
+        + '<div class="g2"><label class="f">Calories to log<input id="eK" inputmode="numeric" value="' + esc(dv("eK", tot)) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addest">Log it</button><button class="btn ghost" data-act="clearest" aria-label="Discard">×</button></div></div></div>';
+    } else h += '<button class="btn pri wide" data-act="estimate">' + ICON.spark + (S.claude ? "Estimate with Claude" : "Estimate") + "</button>"
+      + tip("ex", S.claude ? "Claude reads what you did and works out the calories. Each estimate uses a small amount of your Claude credit. If Claude can't be reached, the free built-in estimate is used." : "The built-in estimate reads what you did and works out the calories. It's free.");
+    return h + "</div>";
+  }
+
   /* ---------- Settings (opens as a sheet from the gear) ---------- */
   function sharingCard(u) {
     var others = S.cache.users.filter(function (x) { return x.id !== u.id; }), hide = u.hide || [];
@@ -1049,7 +1069,6 @@
     if (renderGate()) return;
     renderCrew();
     renderMe(fromSync);
-    if (window.FCTrain) FCTrain.render(fromSync);
     if (S.sheet) renderProfile(S.sheet, fromSync);
   }
 
@@ -1124,6 +1143,7 @@
       S.scan = null; delete S.draft.sG; renderMe();
     },
     foodwater: function () { changeMe(function (u) { u.foodWater = u.foodWater === false; }); },
+    photo: function (b) { var el = document.getElementById(b.dataset.v === "cam" ? "mPhoto" : "mPhotoLib"); if (el) el.click(); },
     water: function (b) { var cur = +((getDay(S.me, S.date) || {}).water) || 0; setWater(cur + +b.dataset.v); },
     glass: function (b) { var i = +b.dataset.i, cur = +((getDay(S.me, S.date) || {}).water) || 0, full = Math.floor(cur / 250); setWater(i + 1 === full ? i * 250 : (i + 1) * 250); },
     meassel: function (b) { S.measSel = b.dataset.v; renderMe(); },
@@ -1184,6 +1204,7 @@
       changeDay(S.date, function (d) { d.ex.splice(+b.dataset.i, 1); });
     },
     diary: function () { pullDiary(S.date); },
+    gotrain: function () { goTab(2); },
     estimate: function (b) {
       var text = val("eText"); if (!text) return toast("Describe the workout first");
       var u = me(), body = bodyOf(u);
@@ -1207,13 +1228,14 @@
       changeDay(S.date, function (d) {
         d.ex.push({ id: uid(), name: names || "Workout", kcal: k, min: mins, desc: text, note: fmt(mins) + " min" + (k !== calc ? " · watch figure" : " · estimated"), src: k !== calc ? "manual" : "estimate", acts: est.activities });
       });
-      S.est = null; clearDraft(["eText", "eK"]); celebrate(); renderMe();
+      S.est = null; clearDraft(["eText", "eK"]); if (window.FCTrain) FCTrain.doneLog(); celebrate(); renderMe(); toast("Added " + fmt(k) + " cal");
     },
     addmanual: function () {
       var k = Math.round(num("eK")); if (!k) return toast("Enter the calories");
       var text = val("eText");
-      changeDay(S.date, function (d) { d.ex.push({ id: uid(), name: text ? text.slice(0, 60) : "Workout", kcal: k, desc: text, note: "From watch", src: "manual" }); });
-      clearDraft(["eText", "eK"]); celebrate(); renderMe();
+      var name = val("eName") || text;
+      changeDay(S.date, function (d) { d.ex.push({ id: uid(), name: name ? name.slice(0, 60) : "Workout", kcal: k, desc: text, note: "From watch", src: "manual" }); });
+      clearDraft(["eText", "eName", "eK"]); if (window.FCTrain) FCTrain.doneLog(); celebrate(); renderMe(); toast("Added " + fmt(k) + " cal");
     },
     addweight: function () {
       var w = num("wKg"); if (w < 25 || w > 350) return toast("Enter your weight in kg");
@@ -1310,7 +1332,9 @@
   });
   document.addEventListener("change", function (e) {
     if ((e.target.id === "mPhoto" || e.target.id === "mPhotoLib") && e.target.files && e.target.files[0]) {
-      shrinkPhoto(e.target.files[0]).then(function (d) { S.mealImg = d; renderMe(); }, function (er) { toast(er.message); });
+      // These inputs live outside the redrawn page, so a photo taken while the app redraws in the background isn't lost
+      var inp = e.target, f = inp.files[0]; S.photoBusy = true; renderMe();
+      shrinkPhoto(f).then(function (d) { S.mealImg = d; S.photoBusy = false; inp.value = ""; renderMe(); }, function (er) { S.photoBusy = false; inp.value = ""; renderMe(); toast(er.message); });
       return;
     }
     if (e.target.dataset && e.target.dataset.act === "diaryauto") { lsSet(LS.diary, e.target.checked ? "1" : ""); if (e.target.checked) autoDiary(); }
@@ -1364,7 +1388,7 @@
 
   /* ---------- Workout tracker (train.js) ---------- */
   if (window.FCTrain) FCTrain.init({ S: S, FC: FC, me: me, user: user, getDay: getDay, changeDay: changeDay, changeMe: changeMe, toast: toast, celebrate: celebrate,
-    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip, checkBadges: function () { setTimeout(checkBadges, 50); }, backfillStats: backfillStats });
+    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip, checkBadges: function () { setTimeout(checkBadges, 50); }, backfillStats: backfillStats, exListHtml: exListHtml, exLogHtml: exLogHtml });
 
   /* ---------- Start ---------- */
   (function readHash() {

@@ -359,16 +359,9 @@ textarea{resize:vertical;min-height:70px}
 .prog button.part{background:var(--accent-2)}
 .prog button.full{background:var(--good)}
 .prog button.cur{outline:2px solid var(--text);outline-offset:2px}
-.rest{display:flex;align-items:center;gap:14px;border-color:var(--accent);background:linear-gradient(135deg,rgba(var(--acc-rgb),.16),var(--card) 70%)}
-.rring{width:72px;height:72px;transform:rotate(-90deg);flex-shrink:0}
 .rring circle{fill:none;stroke-width:7}
 .rring .bg{stroke:var(--line)}
 .rring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .25s linear}
-.rmid{display:flex;flex-direction:column}
-.rmid .rl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-.rmid b{font:600 34px var(--serif);line-height:1}
-.rbtn{margin-left:auto;display:flex;flex-direction:column;gap:6px}
-.rbtn .btn{padding:6px 10px}
 .live .lnav{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .sspill{color:var(--accent-2)}
 .lname{font:600 26px/1.15 var(--serif);margin:12px 0 8px;text-align:center}
@@ -543,6 +536,48 @@ textarea{resize:vertical;min-height:70px}
 .pleft{display:flex;align-items:center;gap:6px;margin:0}
 .pleft svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
 .pleft.none{color:var(--warn)}
+/* Rest bar in the sticky header, demo zoom, per dumbbell */
+.restbar{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 10px;border-radius:14px;background:linear-gradient(135deg,rgba(var(--acc-rgb),.18),var(--surface) 70%);border:1px solid rgba(var(--acc-rgb),.45)}
+.rring{width:40px;height:40px;transform:rotate(-90deg);flex-shrink:0}
+.rring circle{fill:none;stroke-width:4}
+.rmid{display:flex;align-items:baseline;gap:8px}
+.rmid .rl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}
+.rmid b{font:700 28px/1 var(--hfont)}
+.rbtn{margin-left:auto;display:flex;gap:6px}
+.rbtn .btn{padding:6px 9px;font-size:12px}
+.demo{cursor:zoom-in}
+.demo .dzoom{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(0,0,0,.6);color:#fff;border-radius:6px;padding:4px 7px}
+.demo .dzoom .ti{width:12px;height:12px}
+.demo.none .dzoom{display:none}
+#zoom{position:fixed;inset:0;z-index:80;background:rgba(5,6,6,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;cursor:zoom-out}
+#zoom .zbox{position:relative;width:100%;max-width:900px;aspect-ratio:850/567}
+#zoom img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:12px;background:#fff}
+#zoom img.f2{animation:flick 2.4s ease-in-out infinite}
+#zoom p{color:#fff;text-align:center;font:700 20px var(--hfont);text-transform:uppercase;letter-spacing:.03em;margin-top:16px}
+#zoom small{font:500 12px var(--sans);color:var(--muted);text-transform:none;letter-spacing:0}
+.stepper .per{display:block;font-style:normal;font-size:10px;text-transform:none;letter-spacing:0;color:var(--warn);font-weight:600}
+.actv{display:flex;align-items:center;gap:6px;margin-top:-4px}
+/* Log activity and intervals */
+.datebar.sm{margin:-2px 0 10px}
+.datebar.sm b{font-size:15px;min-width:110px}
+.logseg{margin:2px 0 12px}
+.ivl{border:1px solid var(--line);border-radius:14px;padding:10px 12px 2px;margin-bottom:10px}
+.ivh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ivh b{font:700 15px var(--hfont);text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ivl select,#lct{font-weight:600}
+#lct{margin:0 0 10px}
+.ivl .cfbox{margin:10px 0}
+.cfout.sm{padding:6px 10px}
+.cfout.sm b{font-size:22px}
+.cfout.tot{margin:12px 0 10px}
+/* Timed exercises */
+.modesw{display:inline-flex;margin:12px auto 0;background:var(--surface);border-radius:999px;padding:3px;gap:2px;border:1px solid var(--line)}
+.live .modesw{display:flex;width:max-content}
+.modesw button{border:0;background:none;border-radius:999px;padding:5px 14px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.modesw button.on{background:var(--accent);color:var(--accent-ink)}
+.swatch{margin-bottom:12px}
+.swatch.on{display:flex;flex-direction:column;align-items:center;gap:10px}
+.swatch b{font:800 56px/1 var(--hfont);color:var(--accent);text-shadow:0 0 18px rgba(var(--acc-rgb),.35)}
 /* Barcode scanning */
 .scanbtn{margin-bottom:12px}
 .scanned{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}
@@ -623,6 +658,8 @@ h1 b{color:var(--accent)}
 <div id="sheet" role="dialog" aria-modal="true"><div class="panel" id="panel"></div></div>
 <div id="gate"></div>
 <div id="toast" aria-live="polite"></div>
+<input type="file" id="mPhoto" accept="image/*" capture="environment" hidden>
+<input type="file" id="mPhotoLib" accept="image/*" hidden>
 <canvas id="confetti"></canvas>
 <script src="config.js"></script>
 <script src="logic.js"></script>
