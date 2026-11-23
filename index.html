@@ -496,7 +496,16 @@ textarea{resize:vertical;min-height:70px}
 .glass.extra{border-style:dashed}
 .glass:active{transform:scale(.9)}
 .wbar{height:8px;border-radius:4px;background:var(--surface);overflow:hidden;margin-bottom:12px}
-.wbar i{display:block;height:100%;background:linear-gradient(90deg,#4f8fd6,var(--pro));border-radius:4px}
+.wbar{display:flex}
+.wbar i{display:block;height:100%;background:linear-gradient(90deg,#4f8fd6,var(--pro))}
+.wbar i:first-child{border-radius:4px 0 0 4px}
+.wbar i.fw{background:repeating-linear-gradient(45deg,rgba(106,169,233,.55) 0 4px,rgba(106,169,233,.3) 4px 8px)}
+.wsplit{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:-4px 0 12px}
+.wsplit span{display:inline-flex;align-items:center;gap:5px}
+.wsplit i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.wsplit .d1{background:var(--pro)} .wsplit .d2{background:repeating-linear-gradient(45deg,rgba(106,169,233,.7) 0 3px,rgba(106,169,233,.35) 3px 6px)}
+.wsplit .off{color:var(--faint)}
+.fwtog{align-self:end;padding:8px 10px}
 .card h2 small svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;vertical-align:-1px;margin-right:3px}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-bottom:10px}
 .mt{background:var(--surface);border-radius:12px;padding:9px 10px}
@@ -522,6 +531,18 @@ textarea{resize:vertical;min-height:70px}
 .bdg.on.bronze{border-color:rgba(224,164,106,.4)} .bdg.on.silver{border-color:rgba(200,206,212,.35)} .bdg.on.gold{border-color:rgba(255,210,90,.45)} .bdg.on.elite{border-color:rgba(var(--acc-rgb),.5)}
 .bprog{width:80%;height:4px;border-radius:2px;background:var(--card2);overflow:hidden;margin-top:4px}
 .bprog i{display:block;height:100%;background:var(--accent)}
+/* Exercise notes and photo limit */
+.exnote{display:flex;align-items:flex-start;gap:8px;width:100%;text-align:left;margin-top:12px;background:rgba(var(--warn-rgb),.1);border:1px solid rgba(var(--warn-rgb),.35);border-radius:12px;padding:9px 11px;color:var(--text);font-size:14px;line-height:1.35}
+.exnote .nic{color:var(--warn);flex-shrink:0}
+.exnote .ntx{flex:1;white-space:pre-wrap;word-break:break-word}
+.exnote .ned{font-size:12px;font-weight:700;color:var(--warn);flex-shrink:0}
+.exnote.add{justify-content:center;align-items:center;background:none;border-style:dashed;color:var(--muted);font-weight:600;font-size:13px}
+.exnote.edit{flex-direction:column;align-items:stretch}
+.exnote.edit textarea{min-height:76px;background:var(--card)}
+.hasnote{color:var(--warn)} .hasnote .ti{width:13px;height:13px}
+.pleft{display:flex;align-items:center;gap:6px;margin:0}
+.pleft svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
+.pleft.none{color:var(--warn)}
 /* Barcode scanning */
 .scanbtn{margin-bottom:12px}
 .scanned{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px}

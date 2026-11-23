@@ -528,18 +528,20 @@
   /* ---------- Water ---------- */
   function waterGoal(u) { return +u.waterGoal || 2000; }
   function waterCard(u, day) {
-    var ml = +(day && day.water) || 0, goal = waterGoal(u), glasses = Math.max(1, Math.round(goal / 250)), full = Math.floor(ml / 250);
-    var h = '<div class="card">' + head("drop", "Water", fmt(ml) + " / " + fmt(goal) + " ml") + '<div class="glasses">';
+    var ml = +(day && day.water) || 0, fw = foodWater(u, day), tot = ml + fw, goal = waterGoal(u), glasses = Math.max(1, Math.round(goal / 250)), full = Math.floor(ml / 250);
+    var h = '<div class="card">' + head("drop", "Water", fmt(tot) + " / " + fmt(goal) + " ml", "water") + '<div class="glasses">';
     for (var i = 0; i < Math.max(glasses, full); i++) h += '<button class="glass' + (i < full ? " on" : "") + (i >= glasses ? " extra" : "") + '" data-act="glass" data-i="' + i + '" aria-label="' + ((i + 1) * 250) + ' ml">' + ICON.drop + "</button>";
-    h += '</div><div class="wbar"><i style="width:' + Math.min(100, ml / goal * 100) + '%"></i></div>'
-      + '<div class="btns"><button class="btn sm" data-act="water" data-v="250">+250 ml</button><button class="btn sm" data-act="water" data-v="500">+500 ml</button><button class="btn ghost sm" data-act="water" data-v="-250"' + (ml ? "" : " disabled") + ">−250</button></div>";
+    h += '</div><div class="wbar"><i style="width:' + Math.min(100, ml / goal * 100) + '%"></i><i class="fw" style="width:' + Math.max(0, Math.min(100 - ml / goal * 100, fw / goal * 100)) + '%"></i></div>'
+      + '<div class="wsplit"><span><i class="d1"></i>' + fmt(ml) + " ml drunk</span>" + (u.foodWater === false ? '<span class="off">Food water off</span>' : '<span><i class="d2"></i>' + fmt(fw) + " ml from food</span>") + "</div>"
+      + '<div class="btns"><button class="btn sm" data-act="water" data-v="250">+250 ml</button><button class="btn sm" data-act="water" data-v="500">+500 ml</button><button class="btn ghost sm" data-act="water" data-v="-250"' + (ml ? "" : " disabled") + ">−250</button></div>"
+      + tip("water", "Glasses are what you drink. Water in food is added automatically for barcode scans, Claude meal estimates and the food ideas, worked out as the food's weight minus its protein, carbs and fat. Hand-typed entries without a weight can't be counted. About a fifth of most people's water comes from food, so your goal is total water: guidelines suggest around 2.5 L a day for men and 2 L for women, more when training. Turn food water off in Settings > Goals.");
     return h + "</div>";
   }
   function setWater(ml) {
-    var u = me(), before = +((getDay(u.id, S.date) || {}).water) || 0, goal = waterGoal(u);
+    var u = me(), day = getDay(u.id, S.date), before = waterTotal(u, day), goal = waterGoal(u);
     ml = Math.max(0, Math.min(10000, Math.round(ml)));
     changeDay(S.date, function (d) { d.water = ml; });
-    if (before < goal && ml >= goal) { celebrate(); toast("Water goal hit. Nice."); }
+    if (before < goal && waterTotal(u, getDay(u.id, S.date)) >= goal) { celebrate(); toast("Water goal hit. Nice."); }
   }
 
   /* ---------- Measurements (private: the script only sends them back to you) ---------- */
@@ -603,7 +605,7 @@
       w: +st.w || 0, pbs: +st.pbs || 0, vol: +st.vol || 0, cmin: +st.cmin || 0, hf: +st.hf || 0,
       streak: FC.streak(u, getDay, today(), evening()),
       logStreak: dayStreak(u, function (d) { return FC.foodTotals(d).kcal > 0; }),
-      waterStreak: dayStreak(u, function (d) { return (+(d && d.water) || 0) >= goal; }),
+      waterStreak: dayStreak(u, function (d) { return waterTotal(u, d) >= goal; }),
       kgGoal: Math.max(0, Math.round(kgGoal * 10) / 10),
       atTarget: u.targetWeight && now && ((u.status === "cut" && now <= u.targetWeight) || (u.status === "bulk" && now >= u.targetWeight)) ? 1 : 0
     };
@@ -698,7 +700,7 @@
       day.food.slice().reverse().forEach(function (e) {
         var n = (e.name || "").toLowerCase();
         if (!e.kcal || !n || n === "food" || n === "day total" || e.src === "diary" || seen[n] || todayNames[n] || out.length >= 6) return;
-        seen[n] = 1; out.push({ name: e.name, kcal: e.kcal, p: e.p || 0, c: e.c || 0, f: e.f || 0 });
+        seen[n] = 1; out.push({ name: e.name, kcal: e.kcal, p: e.p || 0, c: e.c || 0, f: e.f || 0, w: +e.w || 0 });
       });
     }
     return out;
@@ -719,32 +721,40 @@
   /* ---------- Free food ideas (built-in list, no Claude) ----------
    * Typical NZ serves, values from USDA / NZ FOODfiles (rounded). */
   var IDEAS = [
-    ["Chicken breast, cooked", "150 g", 248, 46.5, 0, 5.4],
-    ["Tuna in springwater", "95 g can", 95, 21, 0, 1],
-    ["Greek yoghurt, unsweetened low fat", "170 g", 100, 17, 6, 0.7],
-    ["Cottage cheese, low fat", "125 g", 90, 15.5, 3.4, 1.3],
-    ["Egg whites", "150 g (about 5)", 78, 16, 1, 0.3],
-    ["Eggs, boiled", "2 large", 155, 12.6, 1.1, 10.6],
-    ["Whey protein shake with water", "1 scoop (30 g)", 120, 24, 3, 1.5],
-    ["Lean beef mince (5% fat), cooked", "150 g", 246, 38.4, 0, 9.6],
-    ["Salmon, cooked", "120 g", 247, 26.4, 0, 14.9],
-    ["Firm tofu", "150 g", 216, 26, 4.2, 13],
-    ["Trim milk", "250 ml", 85, 8.5, 12.5, 0.2],
-    ["Protein bar", "1 bar (60 g)", 220, 20, 20, 7],
-    ["Edamame, shelled", "100 g", 121, 11.9, 8.9, 5.2],
-    ["Banana", "1 medium", 105, 1.3, 27, 0.4],
-    ["Apple", "1 medium", 95, 0.5, 25, 0.3],
-    ["White rice, cooked", "150 g", 195, 4, 42, 0.4],
-    ["Kumara, cooked", "150 g", 135, 3, 31, 0.2],
-    ["Weet-Bix with trim milk", "2 biscuits + 150 ml", 168, 9, 29.6, 0.6],
-    ["Wholemeal bread", "2 slices", 176, 8.7, 30, 2.5],
-    ["Peanut butter", "2 tbsp (32 g)", 190, 7, 7, 16],
-    ["Almonds", "30 g", 174, 6.4, 6.5, 15],
-    ["Oats with full-fat milk", "80 g + 300 ml", 486, 20, 68, 15],
-    ["Avocado", "half", 120, 1.5, 6.4, 11],
-    ["Trail mix", "50 g", 231, 6.9, 22.5, 14.7],
-    ["Cheddar cheese", "30 g", 121, 7.5, 0.4, 9.9]
-  ].map(function (r, i) { return { i: i, name: r[0], serve: r[1], kcal: r[2], p: r[3], c: r[4], f: r[5] }; });
+    ["Chicken breast, cooked", "150 g", 248, 46.5, 0, 5.4, 150],
+    ["Tuna in springwater", "95 g can", 95, 21, 0, 1, 95],
+    ["Greek yoghurt, unsweetened low fat", "170 g", 100, 17, 6, 0.7, 170],
+    ["Cottage cheese, low fat", "125 g", 90, 15.5, 3.4, 1.3, 125],
+    ["Egg whites", "150 g (about 5)", 78, 16, 1, 0.3, 150],
+    ["Eggs, boiled", "2 large", 155, 12.6, 1.1, 10.6, 100],
+    ["Whey protein shake with water", "1 scoop (30 g)", 120, 24, 3, 1.5, 330],
+    ["Lean beef mince (5% fat), cooked", "150 g", 246, 38.4, 0, 9.6, 150],
+    ["Salmon, cooked", "120 g", 247, 26.4, 0, 14.9, 120],
+    ["Firm tofu", "150 g", 216, 26, 4.2, 13, 150],
+    ["Trim milk", "250 ml", 85, 8.5, 12.5, 0.2, 250],
+    ["Protein bar", "1 bar (60 g)", 220, 20, 20, 7, 60],
+    ["Edamame, shelled", "100 g", 121, 11.9, 8.9, 5.2, 100],
+    ["Banana", "1 medium", 105, 1.3, 27, 0.4, 118],
+    ["Apple", "1 medium", 95, 0.5, 25, 0.3, 182],
+    ["White rice, cooked", "150 g", 195, 4, 42, 0.4, 150],
+    ["Kumara, cooked", "150 g", 135, 3, 31, 0.2, 150],
+    ["Weet-Bix with trim milk", "2 biscuits + 150 ml", 168, 9, 29.6, 0.6, 183],
+    ["Wholemeal bread", "2 slices", 176, 8.7, 30, 2.5, 70],
+    ["Peanut butter", "2 tbsp (32 g)", 190, 7, 7, 16, 32],
+    ["Almonds", "30 g", 174, 6.4, 6.5, 15, 30],
+    ["Oats with full-fat milk", "80 g + 300 ml", 486, 20, 68, 15, 380],
+    ["Avocado", "half", 120, 1.5, 6.4, 11, 75],
+    ["Trail mix", "50 g", 231, 6.9, 22.5, 14.7, 50],
+    ["Cheddar cheese", "30 g", 121, 7.5, 0.4, 9.9, 30]
+  ].map(function (r, i) { return { i: i, name: r[0], serve: r[1], kcal: r[2], p: r[3], c: r[4], f: r[5], g: r[6] }; });
+
+  /* ---------- Water in food ----------
+   * Roughly what isn't protein, carbs or fat is water (less ~2% for fibre and minerals). Cooked rice comes out
+   * near 68%, chicken near 65%, fruit and milk near 85-90%, peanut butter near 0, which matches food tables
+   * closely. Only works where the weight is known: barcode scans, Claude meal estimates and the food ideas. */
+  function waterFrom(g, p, c, f) { g = +g || 0; if (g <= 0) return 0; return Math.max(0, Math.round(g - (+p || 0) - (+c || 0) - (+f || 0) - 0.02 * g)); }
+  function foodWater(u, day) { if (u.foodWater === false) return 0; var w = 0; ((day && day.food) || []).forEach(function (e) { w += +e.w || 0; }); return Math.round(w); }
+  function waterTotal(u, day) { return (+(day && day.water) || 0) + foodWater(u, day); }
 
   // Same picks all day, different mix each day
   function rotate(list) { var n = list.length; if (n < 2) return list; var k = Math.floor(Date.now() / 864e5) % n; return list.slice(k).concat(list.slice(0, k)); }
@@ -796,8 +806,11 @@
     t.kcal = Math.round(t.kcal); t.p = Math.round(t.p * 10) / 10; t.c = Math.round(t.c * 10) / 10; t.f = Math.round(t.f * 10) / 10;
     return t;
   }
+  function photosLeft() { return S.photos && S.photos.d === today() ? S.photos.n : null; }
+  function photoNote() { var n = photosLeft(); return n == null ? "" : '<p class="hint pleft' + (n ? "" : " none") + '">' + ICON.camera + (n ? n + " photo" + (n === 1 ? "" : "s") + " left today" : "No photos left today. Describe the meal in words instead.") + "</p>"; }
   function mealBlock() {
     if (!S.claude) return "";
+    if (photosLeft() === 0 && S.mealImg) S.mealImg = null; // out of photos: estimate from the words only
     var r = S.meal, h = '<div class="meal">';
     if (r) {
       var t = mealTotals(r.items);
@@ -811,9 +824,10 @@
         + '<div class="mtot">' + macBar(t.p, t.c, t.f) + macText(t) + "</div>" + tip("food", "Change the calories if it looks off and the macros scale with it.");
     } else {
       h += '<label class="f">Describe a meal or snap a photo<textarea id="mText" placeholder="e.g. 180 g chicken breast, 120 g cooked rice, 1 tbsp olive oil">' + esc(dv("mText", "")) + "</textarea></label>"
+        + photoNote()
         + (S.mealImg ? '<div class="mealimg"><img src="' + S.mealImg + '" alt="Meal photo"><button class="x" data-act="mealnoimg" aria-label="Remove photo">×</button></div>' : "")
-        + '<div class="btns"><label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.camera + "Camera" + '<input type="file" id="mPhoto" accept="image/*" capture="environment" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
-        + '<label class="btn' + (S.mealBusy ? " dis" : "") + '">' + ICON.gallery + "Gallery" + '<input type="file" id="mPhotoLib" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label></div>"
+        + '<div class="btns"><label class="btn' + (S.mealBusy || photosLeft() === 0 ? " dis" : "") + '">' + ICON.camera + "Camera" + '<input type="file" id="mPhoto" accept="image/*" capture="environment" hidden' + (S.mealBusy ? " disabled" : "") + "></label>"
+        + '<label class="btn' + (S.mealBusy || photosLeft() === 0 ? " dis" : "") + '">' + ICON.gallery + "Gallery" + '<input type="file" id="mPhotoLib" accept="image/*" hidden' + (S.mealBusy ? " disabled" : "") + "></label></div>"
         + '<div class="btns"><button class="btn pri" style="flex:1" data-act="meal"' + (S.mealBusy ? " disabled" : "") + ">" + ICON.spark + (S.mealBusy ? "Asking Claude..." : "Estimate with Claude") + "</button></div>"
         + tip("food", "Weights give the best answer. Photos are a rough guess, so check before adding.");
     }
@@ -925,7 +939,8 @@
     // Goals
     var st = dv("gStatus", u.status || "maintain");
     h += '<div class="card">' + head("target", "Goals", "", "goals") + '<div class="stack"><div class="seg">' + ["cut", "maintain", "bulk"].map(function (s) { return '<button class="' + (st === s ? "on" : "") + '" data-act="gstatus" data-v="' + s + '">' + STATUS[s] + "</button>"; }).join("") + "</div>"
-      + '<label class="f">Water goal (ml a day)<input id="gWater" inputmode="numeric" value="' + esc(dv("gWater", u.waterGoal || 2000)) + '"></label>'
+      + '<div class="g2"><label class="f">Water goal (ml a day)<input id="gWater" inputmode="numeric" value="' + esc(dv("gWater", u.waterGoal || 2000)) + '"></label>'
+      + '<button class="row sharerow fwtog" data-act="foodwater" role="switch" aria-checked="' + (u.foodWater !== false) + '"><div class="t"><b>Water from food</b><small>' + (u.foodWater !== false ? "Counted" : "Not counted") + '</small></div><span class="tog' + (u.foodWater !== false ? " on" : "") + '"><i></i></span></button></div>'
       + '<div class="g3"><label class="f">Daily cal goal<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
  + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
       + '<button class="btn pri wide" data-act="savegoals">Save goals</button></div></div>';
@@ -1081,11 +1096,12 @@
       call("meal", { userId: S.me, text: text, image: S.mealImg ? S.mealImg.split(",")[1] : "" })
         .then(function (j) {
           S.mealBusy = false;
+          if (j.photosLeft != null) S.photos = { d: today(), n: j.photosLeft };
           if (!j.items.length) { toast(j.assumptions || "Claude couldn't find any food in that"); renderMe(); return; }
           S.meal = { name: j.meal_name, items: j.items, confidence: j.confidence, assumptions: j.assumptions };
           delete S.draft.mK; renderMe();
         })
-        .catch(function (e) { S.mealBusy = false; renderMe(); toast(e.message === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : e.message); });
+        .catch(function (e) { S.mealBusy = false; if (/photos/.test(e.message)) { S.photos = { d: today(), n: 0 }; S.mealImg = null; } renderMe(); toast(e.message === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : e.message); });
     },
     mealnoimg: function () { S.mealImg = null; renderMe(); },
     mealclear: function () { S.meal = null; delete S.draft.mK; renderMe(); },
@@ -1094,7 +1110,8 @@
       var t = mealTotals(r.items), k = Math.round(num("mK"));
       if (!(k > 0)) return toast("Enter the calories to log");
       var m = t.kcal > 0 ? k / t.kcal : 1, r1 = function (x) { return Math.round(x * m * 10) / 10; };
-      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: r.name, p: r1(t.p), c: r1(t.c), f: r1(t.f), kcal: k, src: "claude", items: r.items.map(function (i) { return i.name + " " + Math.round(i.grams) + " g"; }).join(", ").slice(0, 300) }); });
+      var mw = Math.round(r.items.reduce(function (sw, i) { return sw + waterFrom(i.grams, i.protein_g, i.carbs_g, i.fat_g); }, 0) * m);
+      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: r.name, p: r1(t.p), c: r1(t.c), f: r1(t.f), kcal: k, w: mw, src: "claude", items: r.items.map(function (i) { return i.name + " " + Math.round(i.grams) + " g"; }).join(", ").slice(0, 300) }); });
       S.meal = null; S.mealImg = null; clearDraft(["mK", "mText"]); renderMe();
     },
     scanamt: function (b) { S.draft.sG = b.dataset.v; renderMe(); },
@@ -1103,9 +1120,10 @@
       var p = S.scan; if (!p) return;
       var g = num("sG"); if (!(g > 0)) return toast("Enter how much you had");
       var r = scanCalc(p, g), u = p.liquid ? " ml" : " g";
-      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, src: "barcode", code: p.code }); });
+      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, w: waterFrom(g, r.p, r.c, r.f), src: "barcode", code: p.code }); });
       S.scan = null; delete S.draft.sG; renderMe();
     },
+    foodwater: function () { changeMe(function (u) { u.foodWater = u.foodWater === false; }); },
     water: function (b) { var cur = +((getDay(S.me, S.date) || {}).water) || 0; setWater(cur + +b.dataset.v); },
     glass: function (b) { var i = +b.dataset.i, cur = +((getDay(S.me, S.date) || {}).water) || 0, full = Math.floor(cur / 250); setWater(i + 1 === full ? i * 250 : (i + 1) * 250); },
     meassel: function (b) { S.measSel = b.dataset.v; renderMe(); },
@@ -1131,7 +1149,7 @@
         var p = num("edP"), c = num("edC"), f = num("edF");
         if (!val("edK")) k = FC.macroCal(p, c, f);
         if (!(k > 0)) return toast("Enter calories or macros");
-        changeDay(S.date, function (d) { var e = d.food.filter(function (x) { return x.id === ed.id; })[0] || d.food[ed.i]; if (!e) return; e.name = name || "Food"; e.p = p; e.c = c; e.f = f; e.kcal = k; e.edited = 1; });
+        changeDay(S.date, function (d) { var e = d.food.filter(function (x) { return x.id === ed.id; })[0] || d.food[ed.i]; if (!e) return; if (e.w && e.kcal && k !== e.kcal) e.w = Math.round(e.w * k / e.kcal); e.name = name || "Food"; e.p = p; e.c = c; e.f = f; e.kcal = k; e.edited = 1; });
       } else {
         if (!(k > 0)) return toast("Enter the calories");
         changeDay(S.date, function (d) { var e = d.ex.filter(function (x) { return x.id === ed.id; })[0] || d.ex[ed.i]; if (!e) return; e.name = name || "Workout"; e.kcal = k; e.edited = 1; });
@@ -1141,7 +1159,7 @@
     favadd: function (b) {
       var k = b.dataset.k, e = ((getDay(S.me, S.date) || {})[k] || [])[+b.dataset.i]; if (!e) return;
       var name = val("edN") || e.name, kc = Math.round(num("edK")) || e.kcal;
-      var item = k === "food" ? { name: name, kcal: kc, p: num("edP"), c: num("edC"), f: num("edF") } : { name: name, kcal: kc, note: e.note || "" };
+      var item = k === "food" ? { name: name, kcal: kc, p: num("edP"), c: num("edC"), f: num("edF"), w: +e.w || 0 } : { name: name, kcal: kc, note: e.note || "" };
       changeMe(function (u) { u.saved = u.saved || {}; var l = u.saved[k] = (u.saved[k] || []).filter(function (x) { return x.name.toLowerCase() !== name.toLowerCase(); }); l.unshift(item); if (l.length > 40) l.length = 40; });
       toast("Saved. It's in your " + (k === "food" ? "saved foods" : "saved workouts") + " now.");
     },
@@ -1149,13 +1167,13 @@
     favdel: function (b) { var k = b.dataset.k, i = +b.dataset.i; changeMe(function (u) { (u.saved[k] || []).splice(i, 1); }); },
     quick: function (b) {
       var k = b.dataset.k, u = me(), x = (b.dataset.src === "s" ? savedList(k, u) : recentFoods(u))[+b.dataset.i]; if (!x) return;
-      if (k === "food") changeDay(S.date, function (d) { d.food.push({ id: uid(), name: x.name, p: x.p || 0, c: x.c || 0, f: x.f || 0, kcal: x.kcal, src: "saved" }); });
+      if (k === "food") changeDay(S.date, function (d) { d.food.push({ id: uid(), name: x.name, p: x.p || 0, c: x.c || 0, f: x.f || 0, kcal: x.kcal, w: +x.w || 0, src: "saved" }); });
       else { changeDay(S.date, function (d) { d.ex.push({ id: uid(), name: x.name, kcal: x.kcal, note: x.note || "Saved workout", src: "saved" }); }); celebrate(b); }
       toast("Added " + x.name);
     },
     ideaadd: function (b) {
       var x = IDEAS[+b.dataset.i]; if (!x) return;
-      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: x.name + " (" + x.serve + ")", p: x.p, c: x.c, f: x.f, kcal: x.kcal, src: "idea" }); });
+      changeDay(S.date, function (d) { d.food.push({ id: uid(), name: x.name + " (" + x.serve + ")", p: x.p, c: x.c, f: x.f, kcal: x.kcal, w: waterFrom(x.g, x.p, x.c, x.f), src: "idea" }); });
       toast("Added " + x.name);
     },
     delfood: function (b) { S.edit = null; changeDay(S.date, function (d) { d.food.splice(+b.dataset.i, 1); }); },

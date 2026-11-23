@@ -38,6 +38,7 @@
     run: SV('<circle cx="14" cy="4.5" r="2"/><path d="M7 21l3-6 3 2v5M5.5 12l3-4 4 1 3 4 3 1M10 15l2-6"/>'),
     up: SV('<path d="M12 19V5M5 12l7-7 7 7"/>'), down: SV('<path d="M12 5v14M5 12l7 7 7-7"/>'),
     target: SV('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>'),
+    note: SV('<path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/>'),
     play: SV('<path d="M8 5.5v13l10.5-6.5z"/>'),
     sun: SV('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>')
   };
@@ -488,7 +489,7 @@
     var w = T.active, e = w.exs[k], type = cardioType(e.x), T0 = CARDIO[type] || CARDIO.other;
     var h = '<div class="card live"><div class="lnav"><button class="icb" data-tact="goto" data-k="' + (k - 1) + '"' + (k ? "" : " disabled") + ' aria-label="Previous">' + TI.left + "</button><span>Exercise " + (k + 1) + " of " + w.exs.length + " · Cardio</span>"
       + '<button class="icb" data-tact="goto" data-k="' + (k + 1) + '"' + (k < w.exs.length - 1 ? "" : " disabled") + ' aria-label="Next">' + TI.right + "</button></div>"
-      + '<div class="cardhero">' + TI.run + '</div><h3 class="lname">' + esc(T0.n) + "</h3>";
+      + '<div class="cardhero">' + TI.run + '</div><h3 class="lname">' + esc(T0.n) + "</h3>" + noteBox(u, e.x);
     if (e.done) {
       var nx = firstOpen(k + 1);
       h += '<div class="exdone">' + TI.check + esc(fmt(num(e.c.min))) + " min · " + fmt(cardioKcal(type, e.c)) + ' cal</div><button class="btn ghost wide" data-tact="cundo" data-k="' + k + '">Edit</button>'
@@ -496,6 +497,20 @@
       return h + "</div>";
     }
     return h + '<div class="cfbox" data-k="' + k + '">' + cardioFields(type, e.c, "lc_") + '</div><button class="btn pri wide xl" data-tact="clog" data-k="' + k + '">' + TI.check + "Log cardio</button></div>";
+  }
+
+  /* ---------- Notes to self (kept in the private part of the profile, so only you see them) ---------- */
+  function noteOf(u, id) { return ((u.priv || {}).notes || {})[id] || ""; }
+  function noteBox(u, id) {
+    var n = noteOf(u, id);
+    if (T.noteEdit === id) return '<div class="exnote edit"><textarea id="exNote" maxlength="300" placeholder="e.g. Seat on 4, grip just outside the rings, pause at the bottom">' + esc(T.noteDraft != null ? T.noteDraft : n) + '</textarea><div class="btns"><button class="btn pri sm" data-tact="notesave" data-x="' + esc(id) + '">Save note</button><button class="btn ghost sm" data-tact="notecancel">Cancel</button>' + (n ? '<button class="btn ghost sm" data-tact="notedel" data-x="' + esc(id) + '">Delete</button>' : "") + "</div></div>";
+    if (n) return '<button class="exnote" data-tact="noteedit" data-x="' + esc(id) + '"><span class="nic">' + TI.note + '</span><span class="ntx">' + esc(n) + '</span><span class="ned">Edit</span></button>';
+    return '<button class="exnote add" data-tact="noteedit" data-x="' + esc(id) + '">' + TI.note + "Add a note</button>";
+  }
+  function saveNote(id, text) {
+    text = String(text || "").trim().slice(0, 300);
+    A.changeMe(function (uu) { uu.priv = uu.priv || {}; uu.priv.notes = uu.priv.notes || {}; if (text) uu.priv.notes[id] = text; else delete uu.priv.notes[id]; });
+    T.noteEdit = null; T.noteDraft = null; render(); A.toast(text ? "Note saved. You'll see it next time." : "Note deleted");
   }
 
   /* ---------- Weight suggestions ----------
@@ -548,6 +563,7 @@
       + demo(e.x) + '<h3 class="lname">' + esc(shortName(x.n)) + '</h3><div class="mchips">' + musChips(x) + "</div>"
       + (pb && pb.w ? '<div class="lpb">' + TI.trophy + "PB " + kgs(pb.w) + " kg × " + pb.wr + (pb.e1 ? '<span>· est. max ' + fmt(pb.e1) + " kg</span>" : "") + "</div>" : "");
     if (grp.length > 1) h += '<div class="ssnext">' + grp.map(function (i) { return '<span class="' + (i === k ? "on" : "") + '">' + esc(shortName(exInfo(w.exs[i].x).n)) + " " + doneCount(w.exs[i]) + "/" + setCount(w.exs[i]) + "</span>"; }).join('<i>→</i>') + "</div>";
+    h += noteBox(u, e.x);
     h += '<div class="lsets">' + e.sets.map(function (s, i) {
       var p = e.prev[i] || e.prev[e.prev.length - 1];
       if (s.done) return '<button class="ls done" data-tact="undo" data-k="' + k + '" data-j="' + i + '"><span class="n">' + TI.check + '</span><b>' + (+s.kg ? kgs(+s.kg) + " kg × " : "") + s.reps + '</b><small>tap to redo</small></button>';
@@ -573,7 +589,7 @@
     var h = '<div class="card"><h2>' + TI.list + "Exercises</h2>";
     if (w.exs.length) h += '<div class="list">' + w.exs.map(function (e, k) {
       var x = exInfo(e.x), dc = doneCount(e), sc = setCount(e);
-      return '<div class="row ov' + (e.g ? " ssrow" : "") + '"><div class="t tap" data-tact="goto" data-k="' + k + '"><b>' + esc(shortName(x.n)) + "</b><small>" + (e.g ? "Superset " + esc(e.g) + " · " : "") + esc(musText(x)) + '</small></div><span class="cnt' + (dc === sc ? " full" : "") + '">' + (isCardio(e) ? (e.done ? "done" : (num(e.c.min) || "–") + " min") : dc + "/" + sc) + '</span><button class="x" data-tact="exrm" data-k="' + k + '" aria-label="Remove exercise">×</button></div>';
+      return '<div class="row ov' + (e.g ? " ssrow" : "") + '"><div class="t tap" data-tact="goto" data-k="' + k + '"><b>' + esc(shortName(x.n)) + (noteOf(u, e.x) ? ' <span class="hasnote">' + TI.note + "</span>" : "") + "</b><small>" + (e.g ? "Superset " + esc(e.g) + " · " : "") + esc(musText(x)) + '</small></div><span class="cnt' + (dc === sc ? " full" : "") + '">' + (isCardio(e) ? (e.done ? "done" : (num(e.c.min) || "–") + " min") : dc + "/" + sc) + '</span><button class="x" data-tact="exrm" data-k="' + k + '" aria-label="Remove exercise">×</button></div>';
     }).join("") + "</div>";
     else h += '<p class="empty">Add your first exercise.</p>';
     return h + '<button class="btn wide" data-tact="pick" data-mode="active">' + A.ICON.plus + "Add exercise</button></div>"
@@ -838,6 +854,10 @@
     },
     startblank: function () { if (T.active) return A.toast("Finish or discard the current workout first"); startWorkout(null); },
     log: logSet,
+    noteedit: function (b) { T.noteEdit = b.dataset.x; T.noteDraft = null; render(); setTimeout(function () { var t = $("#exNote"); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 30); },
+    notecancel: function () { T.noteEdit = null; T.noteDraft = null; render(); },
+    notesave: function (b) { var t = $("#exNote"); saveNote(b.dataset.x, t ? t.value : T.noteDraft); },
+    notedel: function (b) { saveNote(b.dataset.x, ""); },
     usesugg: function (b) {
       var w = T.active, e = w.exs[w.cur], j = nextSet(e); if (j < 0) return;
       if (b.dataset.kg) e.sets[j].kg = String(b.dataset.kg); if (b.dataset.r) e.sets[j].reps = String(b.dataset.r);
@@ -865,7 +885,7 @@
       var el = $(f === "kg" ? "#lkg" : "#lreps"); if (el) el.value = v;
     },
     undo: function (b) { var e = T.active.exs[+b.dataset.k], s = e.sets[+b.dataset.j]; s.done = false; T.active.cur = +b.dataset.k; saveActive(); render(); },
-    "goto": function (b) { var k = +b.dataset.k; if (k < 0 || k >= T.active.exs.length) return; T.active.cur = k; T.overview = false; saveActive(); render(); var p = $("#pTrain"); if (p) p.scrollTop = 0; },
+    "goto": function (b) { var k = +b.dataset.k; if (k < 0 || k >= T.active.exs.length) return; T.active.cur = k; T.noteEdit = null; T.noteDraft = null; T.overview = false; saveActive(); render(); var p = $("#pTrain"); if (p) p.scrollTop = 0; },
     overview: function () { T.overview = !T.overview; render(); },
     rest: function (b) {
       var r = T.active.rest; if (!r) return;
@@ -933,6 +953,7 @@
     document.addEventListener("input", function (e) {
       var t = e.target;
       if (t.id === "tpQ") { T.q = t.value; renderPicker(); return; }
+      if (t.id === "exNote") { T.noteDraft = t.value; return; }
       if (t.id === "trName" && T.draft) { T.draft.name = t.value; return; }
       if (t.id === "wkName" && T.active) { T.active.name = t.value; saveActive(); return; }
       if (t.dataset && t.dataset.f && T.active) {
