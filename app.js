@@ -973,6 +973,7 @@
       + tip("profile", "Height, age and sex sharpen the burn estimates and the suggested goal.")
       + '<button class="btn pri wide" data-act="saveprofile">Save profile</button></div></div>';
     h += sharingCard(u);
+    if (window.FCTrain) h += FCTrain.noEquipHtml(u);
     h += '<div class="card">' + head("lock", "Security") + '<div class="stack">' + (S.pinless ? '<p class="hint">PINs need the updated Google script.</p>' : '<button class="btn wide" data-act="changepin">' + ICON.lock + "Change my PIN</button>")
       + '<button class="btn ghost wide" data-act="switch">Switch person on this phone</button></div></div>';
     h += '<div class="card">' + head("users", "Crew", "", "crew") + '<div class="stack"><button class="btn wide" data-act="invite">' + ICON.share + 'Share invite link</button>' + tip("crew", "Anyone with the link can join the crew. Only send it to people you want in.")

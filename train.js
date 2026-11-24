@@ -284,7 +284,7 @@
     var el = $("#train"); if (!el) return;
     if (fromSync && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     var u = me(); if (!u) { el.innerHTML = ""; return; }
-    var h = T.active ? activeView(u) : T.view === "edit" && T.draft ? editView(u) : T.view === "cardio" && T.cardio ? cardioView(u) : homeView(u);
+    var h = T.active ? activeView(u) : T.view === "edit" && T.draft ? editView(u) : T.view === "cardio" && T.cardio ? cardioView(u) : T.view === "rec" && T.rec ? recView(u) : homeView(u);
     el.innerHTML = h;
     renderPicker();
   }
@@ -297,9 +297,9 @@
       var mus = {}; r.items.forEach(function (it) { exInfo(it.x).p.forEach(function (m) { mus[m] = 1; }); });
       var sets = r.items.reduce(function (s, it) { return s + (+it.sets || 0); }, 0);
       return '<div class="card hero"><div class="hlab">' + TI.sun + "Today · " + DAYS[wd] + '</div><div class="hname">' + esc(r.name) + '</div><div class="hmeta">' + r.items.length + " exercises · " + sets + ' sets</div><div class="mchips left">'
-        + Object.keys(mus).map(function (m) { return '<span class="mchip">' + esc(LABEL[M[m]]) + "</span>"; }).join("") + '</div><button class="btn pri wide xl" data-tact="start" data-id="' + r.id + '">' + TI.dumbbell + "Start workout</button></div>";
+        + Object.keys(mus).map(function (m) { return '<span class="mchip">' + esc(LABEL[M[m]]) + "</span>"; }).join("") + '</div><button class="btn pri wide xl" data-tact="start" data-id="' + r.id + '">' + TI.dumbbell + "Start workout</button>" + recBtn() + "</div>";
     }).join("");
-    else h += '<div class="card hero rest-day"><div class="hlab">' + TI.sun + "Today · " + DAYS[wd] + '</div><div class="hname">Rest day</div><div class="hmeta">Nothing planned. Train anyway or recover.</div><button class="btn wide" data-tact="startblank">' + A.ICON.plus + "Start an empty workout</button></div>";
+    else h += '<div class="card hero rest-day"><div class="hlab">' + TI.sun + "Today · " + DAYS[wd] + '</div><div class="hname">Rest day</div><div class="hmeta">Nothing planned. Train anyway or recover.</div><button class="btn wide" data-tact="startblank">' + A.ICON.plus + "Start an empty workout</button>" + recBtn() + "</div>";
     h += activityCard(u);
     h += '<div class="card">' + A.head("body", "Recovery", "", "rec") + recoveryCard(u) + "</div>";
     h += '<div class="card">' + A.head("list", "My workouts", routines.length ? String(routines.length) : "");
@@ -317,6 +317,7 @@
       + A.exListHtml(u)
       + '<button class="btn pri wide" data-tact="lognew" style="margin-top:10px">' + A.ICON.plus + "Log activity</button></div>";
   }
+  function recBtn() { return '<button class="btn ghost sm recbtn" data-tact="rec">' + A.ICON.spark + "Recommend a workout</button>"; }
   function routineRow(r, big) {
     var days = ORDER.filter(function (d) { return (r.days || []).indexOf(d) >= 0; }).map(function (d) { return DAYS[d]; }).join(" ");
     var n = r.items.length, sets = r.items.reduce(function (s, it) { return s + (+it.sets || 0); }, 0), cmin = r.items.reduce(function (s, it) { return s + (String(it.x).indexOf("cardio:") === 0 ? (+it.min || 0) : 0); }, 0);
@@ -415,6 +416,223 @@
     T.view = "home"; T.cardio = null; T.logMode = null; render(); if (A.checkBadges) A.checkBadges(); A.celebrate(); A.toast(name + " saved. " + fmt(kc) + " cal added.");
   }
 
+  /* ---------- Recommend a workout (free, no Claude) ----------
+   * Picks the freshest muscle groups from the recovery model, fits exercises and sets into the time chosen,
+   * and links intensity with estimated calories (change one and the other follows, moving the time if needed).
+   * Exercises come from a shortlist of well-known ones. Swapping prefers more common equipment
+   * (body weight, dumbbells, bands, kettlebells, then barbell, cable, machine) and remembers what you don't have. */
+  var LEVELS = [
+    { n: "Casual", sets: [2, 2], rest: [150, 105], met: 3.0, eff: "light", fin: 5, fe: "light", ss: 0, cp: 1 },
+    { n: "Low", sets: [3, 2], rest: [135, 90], met: 3.5, eff: "light", fin: 6, fe: "normal", ss: 0, cp: 1 },
+    { n: "Medium", sets: [3, 3], rest: [120, 75], met: 5, eff: "normal", fin: 8, fe: "normal", ss: 1, cp: 2 },
+    { n: "Intense", sets: [4, 3], rest: [90, 60], met: 6, eff: "hard", fin: 10, fe: "hard", ss: 2, cp: 2 },
+    { n: "Brutal", sets: [4, 4], rest: [75, 45], met: 6.5, eff: "hard", fin: 0.33, fe: "hard", ss: 3, cp: 3 }
+  ];
+  var RTIMES = [20, 30, 45, 60, 75, 90];
+  var POOL = {
+    chest: { m: ["chest"], n: "chest", c: ["Barbell_Bench_Press_-_Medium_Grip", "Dumbbell_Bench_Press", "Incline_Dumbbell_Press", "Barbell_Incline_Bench_Press_-_Medium_Grip", "Machine_Bench_Press", "Leverage_Chest_Press", "Pushups", "Push-Ups_With_Feet_Elevated", "Dumbbell_Floor_Press"],
+      i: ["Dumbbell_Flyes", "Cable_Crossover", "Butterfly", "Incline_Dumbbell_Flyes", "Bench_Press_-_With_Bands"] },
+    back: { m: ["lats", "middle back"], n: "back", c: ["Wide-Grip_Lat_Pulldown", "Seated_Cable_Rows", "Pullups", "One-Arm_Dumbbell_Row", "Bent_Over_Barbell_Row", "Chin-Up", "Bent_Over_Two-Dumbbell_Row", "Leverage_Iso_Row", "T-Bar_Row_with_Handle", "Close-Grip_Front_Lat_Pulldown", "Inverted_Row", "One-Arm_Kettlebell_Row", "Dumbbell_Incline_Row"],
+      i: ["Straight-Arm_Pulldown", "Rope_Straight-Arm_Pulldown"] },
+    shoulders: { m: ["shoulders"], n: "shoulders", c: ["Dumbbell_Shoulder_Press", "Standing_Military_Press", "Seated_Dumbbell_Press", "Machine_Shoulder_Military_Press", "Arnold_Dumbbell_Press", "Alternating_Kettlebell_Press"],
+      i: ["Side_Lateral_Raise", "Seated_Side_Lateral_Raise", "Lateral_Raise_-_With_Bands", "Front_Dumbbell_Raise"] },
+    rear: { m: ["shoulders"], n: "rear shoulders", c: [], i: ["Face_Pull", "Reverse_Flyes", "Band_Pull_Apart", "Back_Flyes_-_With_Bands"] },
+    biceps: { m: ["biceps"], n: "biceps", c: [], i: ["Barbell_Curl", "Dumbbell_Bicep_Curl", "Hammer_Curls", "EZ-Bar_Curl", "Incline_Dumbbell_Curl", "Standing_Biceps_Cable_Curl", "Concentration_Curls", "Cable_Hammer_Curls_-_Rope_Attachment"] },
+    triceps: { m: ["triceps"], n: "triceps", c: ["Dips_-_Triceps_Version", "Close-Grip_Barbell_Bench_Press", "Bench_Dips", "Push-Ups_-_Close_Triceps_Position"],
+      i: ["Triceps_Pushdown", "Triceps_Pushdown_-_Rope_Attachment", "Cable_Rope_Overhead_Triceps_Extension", "Lying_Triceps_Press", "Standing_Dumbbell_Triceps_Extension", "Tricep_Dumbbell_Kickback"] },
+    quads: { m: ["quadriceps"], n: "quads", c: ["Barbell_Squat", "Leg_Press", "Goblet_Squat", "Hack_Squat", "Dumbbell_Lunges", "Smith_Machine_Squat", "Split_Squat_with_Dumbbells", "Dumbbell_Step_Ups", "Dumbbell_Squat", "Bodyweight_Squat"],
+      i: ["Leg_Extensions", "Bodyweight_Walking_Lunge"] },
+    hams: { m: ["hamstrings"], n: "hamstrings", c: ["Romanian_Deadlift", "Stiff-Legged_Dumbbell_Deadlift", "Barbell_Deadlift", "One-Arm_Kettlebell_Swings", "Kettlebell_One-Legged_Deadlift"],
+      i: ["Lying_Leg_Curls", "Seated_Leg_Curl", "Standing_Leg_Curl", "Ball_Leg_Curl"] },
+    glutes: { m: ["glutes"], n: "glutes", c: ["Barbell_Hip_Thrust", "Barbell_Glute_Bridge", "Pull_Through"], i: ["Single_Leg_Glute_Bridge", "Glute_Kickback", "Hip_Lift_with_Band"] },
+    calves: { m: ["calves"], n: "calves", c: [], i: ["Standing_Calf_Raises", "Seated_Calf_Raise", "Calf_Raise_On_A_Dumbbell", "Smith_Machine_Calf_Raise", "Calf_Press_On_The_Leg_Press_Machine"] },
+    abs: { m: ["abdominals"], n: "abs", c: [], i: ["Cable_Crunch", "Hanging_Leg_Raise", "Plank", "Crunches", "Reverse_Crunch", "Russian_Twist", "Ab_Roller"] }
+  };
+  var TPL = [
+    { n: "Push", lbl: "chest, shoulders and triceps", g: ["chest", "shoulders", "triceps"], s: ["chest.c", "shoulders.c", "chest.c", "shoulders.i", "triceps.i", "chest.i", "triceps.i", "shoulders.i"] },
+    { n: "Pull", lbl: "back and biceps", g: ["back", "biceps"], s: ["back.c", "back.c", "back.c", "biceps.i", "rear.i", "biceps.i", "back.i", "biceps.i"] },
+    { n: "Legs", lbl: "quads, hamstrings and glutes", g: ["quads", "hams", "glutes"], s: ["quads.c", "hams.c", "quads.c", "glutes.c", "hams.i", "quads.i", "calves.i", "glutes.i"] },
+    { n: "Upper body", lbl: "chest, back, shoulders and arms", g: ["chest", "back", "shoulders"], s: ["chest.c", "back.c", "shoulders.c", "back.c", "biceps.i", "triceps.i", "shoulders.i", "chest.i"] },
+    { n: "Full body", lbl: "legs, chest and back", g: ["quads", "chest", "back", "hams"], s: ["quads.c", "chest.c", "back.c", "hams.c", "shoulders.c", "biceps.i", "triceps.i", "glutes.c"], pen: 0.1 }
+  ];
+  var PUMPS = [
+    { n: "Arm pump", lbl: "biceps and triceps", g: ["biceps", "triceps"], s: ["biceps.i", "triceps.i", "biceps.i", "triceps.i", "biceps.i", "triceps.i", "biceps.i", "triceps.i"] },
+    { n: "Shoulder and arm pump", lbl: "shoulders and arms", g: ["shoulders", "biceps", "triceps"], s: ["shoulders.i", "rear.i", "biceps.i", "triceps.i", "biceps.i", "triceps.i", "shoulders.i", "rear.i"] },
+    { n: "Chest and back pump", lbl: "chest and back", g: ["chest", "back"], s: ["chest.c", "back.c", "chest.i", "back.c", "chest.i", "back.i", "chest.c", "back.c"] },
+    { n: "Leg pump", lbl: "quads and hamstrings", g: ["quads", "hams"], s: ["quads.i", "hams.i", "quads.c", "hams.c", "calves.i", "glutes.i", "quads.c", "hams.i"] }
+  ];
+  var EQRANK = { "body only": 0, "": 0, dumbbell: 1, bands: 2, kettlebells: 3, barbell: 4, "e-z curl bar": 4, cable: 5, machine: 6, other: 6 };
+  var CMACH = ["treadmill", "bike", "row", "elliptical", "stairs", "walk", "run", "swim"];
+  function eqRank(id) { var r = EQRANK[exInfo(id).e]; return r == null ? 6 : r; }
+  function noEquip(u) { return ((u && u.priv) || {}).noEquip || []; }
+  function addNoEquip(id) { A.changeMe(function (uu) { uu.priv = uu.priv || {}; var l = uu.priv.noEquip = (uu.priv.noEquip || []).filter(function (x) { return x !== id; }); l.push(id); if (l.length > 80) l.shift(); }); }
+  function groupF(rec, g) { var f = 0, tr = false; POOL[g].m.forEach(function (m) { var r = rec[M.indexOf(m)]; if (r) { if (r.f > f) f = r.f; if (r.trained) tr = true; } }); return { f: f, tr: tr }; }
+  function groupLeft(rec, g) { var l = 0; POOL[g].m.forEach(function (m) { var r = rec[M.indexOf(m)]; if (r && r.left > l) l = r.left; }); return l; }
+  function pickTpl(list, rec, force) {
+    var best = null;
+    list.forEach(function (t) {
+      var fs = t.g.map(function (g) { return groupF(rec, g); }), worst = Math.max.apply(null, fs.map(function (x) { return x.f; }));
+      if (worst > 0.5 && !force) return;
+      var sc = fs.reduce(function (s, x) { return s + (1 - x.f) + (x.tr ? 0 : 0.25); }, 0) / fs.length - (t.pen || 0) - (force ? worst : 0);
+      if (!best || sc > best.sc) best = { t: t, sc: sc };
+    });
+    return best && best.t;
+  }
+  function pickEx(u, slot, used) {
+    var p = slot.split("."), list = POOL[p[0]][p[1]], ne = noEquip(u);
+    var c = list.filter(function (id) { return EXMAP[id] && !used[id] && ne.indexOf(id) < 0; });
+    c.sort(function (a, b) { return (lastFor(u, b).length ? 1 : 0) - (lastFor(u, a).length ? 1 : 0) || list.indexOf(a) - list.indexOf(b); });
+    return c[0] || null;
+  }
+  function round5(n) { return Math.max(5, Math.round(n / 5) * 5); }
+  function cardioPiece(type, min, lvl) {
+    var kmh = [5, 5.5, 6, 6.5, 9][lvl], inc = [3, 5, 8, 10, 3][lvl];
+    return { x: "cardio:" + type, min: min, eff: LEVELS[lvl].fe, kmh: type === "treadmill" ? String(kmh) : "", inc: type === "treadmill" ? String(inc) : "" };
+  }
+  function cardioTypes(u, legsSore) {
+    var ne = noEquip(u), order = legsSore ? ["bike", "elliptical", "row", "walk", "treadmill"] : ["treadmill", "row", "bike", "stairs", "elliptical", "run"];
+    var ok = order.filter(function (t) { return ne.indexOf("cardio:" + t) < 0; });
+    return ok.length ? ok : ["other"];
+  }
+  function cardioSplit(u, min, lvl, pieces, legsSore) {
+    var types = cardioTypes(u, legsSore), out = [], n = Math.max(1, Math.min(pieces, Math.floor(min / 5), types.length)), left = min;
+    for (var i = 0; i < n; i++) { var m = i === n - 1 ? left : Math.round(min / n); left -= m; out.push(cardioPiece(types[i], m, lvl)); }
+    return out;
+  }
+  function buildPlan(u, st) {
+    var L = LEVELS[st.lvl], rec = recovery(u.id), pump = st.pump;
+    var legsSore = Math.max(groupF(rec, "quads").f, groupF(rec, "hams").f) > 0.3;
+    var tpl = pickTpl(pump ? PUMPS : TPL, rec, st.force);
+    var fresh = [], sore = [];
+    ["chest", "back", "shoulders", "biceps", "triceps", "quads", "hams", "glutes"].forEach(function (g) { var x = groupF(rec, g); if (x.f > 0.3) sore.push([g, groupLeft(rec, g)]); else fresh.push(g); });
+    sore.sort(function (a, b) { return b[1] - a[1]; });
+    var why = (fresh.length ? "Fresh: " + fresh.map(function (g) { return POOL[g].n; }).join(", ") + ". " : "") + (sore.length ? "Still recovering: " + sore.map(function (s) { return POOL[s[0]].n + " (" + hoursText(s[1]) + ")"; }).join(", ") + "." : "");
+    if (!tpl) {
+      return { kind: "cardio", name: "Cardio", lbl: legsSore ? "easy on the legs" : "intervals", why: why, items: cardioSplit(u, st.min, st.lvl, [1, 1, 2, 2, 3][st.lvl], legsSore), lvl: st.lvl, min: st.min };
+    }
+    var finMin = st.fin === false ? 0 : st.lvl === 4 ? Math.min(Math.round(st.min * 0.45), Math.max(10, round5(st.min * L.fin))) : Math.min(Math.round(st.min * 0.4), L.fin);
+    var budget = (st.min - finMin) * 60 - 180, spent = 0, items = [], used = {};
+    var restP = Math.max(30, Math.round(L.rest[1] * 0.6 / 5) * 5);
+    var add = function (slot, k, force) {
+      var g = slot.split(".")[0]; if (groupF(rec, g).f > 0.5 && !st.force) return false;
+      var id = pickEx(u, slot, used); if (!id) return false;
+      var comp = slot.split(".")[1] === "c", timed = isTimedEx(id);
+      var full = pump ? L.sets[1] : L.sets[comp ? 0 : 1], rest = timed ? 60 : pump ? restP : L.rest[comp ? 0 : 1];
+      var paired = pump || (L.ss >= 2 && !comp) || (L.ss === 3 && items.length > 0), one = 45 + (paired ? rest / 2 + 15 : rest);
+      var sets = full; while (sets > 2 && spent + sets * one > budget) sets--; // fewer sets before fewer exercises
+      if (spent + sets * one > budget && !force) return false;
+      used[id] = 1; spent += sets * one;
+      var rg = timed ? [20, 45] : pump ? [12, 20] : st.lvl <= 1 ? (comp ? [8, 12] : [12, 15]) : (comp ? [6, 10] : [10, 15]);
+      items.push({ x: id, sets: sets, full: full, g: "", rest: rest, rg: rg, c: comp ? 1 : 0, one: one, k: k });
+      return true;
+    };
+    // Every muscle group in the session gets one exercise first, then the rest of the slots in order
+    var order = [], seen = {};
+    tpl.s.forEach(function (sl, k) { var g = sl.split(".")[0]; if (!seen[g]) { seen[g] = 1; order.push(k); } });
+    tpl.s.forEach(function (sl, k) { if (order.indexOf(k) < 0) order.push(k); });
+    order.forEach(function (k) { add(tpl.s[k], k, items.length < 2); });
+    if (budget - spent > 240 && !pump) add("abs.i", 99, false);
+    items.sort(function (a, b) { return a.k - b.k; });
+    var grow = true; // spare time: add sets, big lifts first
+    while (grow) {
+      grow = false;
+      items.slice().sort(function (a, b) { return b.c - a.c; }).forEach(function (it) {
+        if (it.sets < Math.min(5, it.full + 1) && budget - spent > it.one) { it.sets++; spent += it.one; grow = true; }
+      });
+    }
+    // Supersets: pump pairs everything; Medium pairs the last two isolation moves; Intense pairs isolation; Brutal pairs all after the first
+    var elig = items.map(function (it, k) { return k; }).filter(function (k) { var it = items[k]; return pump || (L.ss >= 2 && !it.c) || (L.ss === 3 && k > 0) || (L.ss === 1 && !it.c); });
+    if (L.ss === 1 && !pump) elig = elig.slice(-2);
+    var letter = 0, partner = {};
+    for (var j = 0; j + 1 < elig.length; j += 2) {
+      var a = items[elig[j]], b = items[elig[j + 1]], ch = "ABCDEF"[letter++];
+      a.g = b.g = ch; var r = Math.max(a.rest, b.rest); a.rest = b.rest = r;
+      if (pump && st.lvl >= 3) a.drop = b.drop = 1;
+      partner[elig[j]] = elig[j + 1]; partner[elig[j + 1]] = -1;
+    }
+    var ord = []; // keep each pair together
+    items.forEach(function (it, k) { if (partner[k] === -1) return; ord.push(it); if (partner[k] != null) ord.push(items[partner[k]]); });
+    items = ord;
+    var out = items.map(function (it) { return { x: it.x, sets: it.sets, g: it.g, rest: it.rest, rg: it.rg, drop: it.drop || 0, c: it.c }; });
+    if (finMin) out = out.concat(cardioSplit(u, finMin, st.lvl, st.lvl === 4 ? 3 : 1, tpl.n === "Legs" || legsSore).map(function (c) { c.fin = 1; return c; }));
+    return { kind: "lift", name: tpl.n, lbl: tpl.lbl, why: why, items: out, lvl: st.lvl, min: st.min, pump: pump };
+  }
+  function planKcal(u, p) {
+    var L = LEVELS[p.lvl], sec = 0, kc = 0, body = A.bodyOf(u);
+    p.items.forEach(function (it) {
+      if (String(it.x).indexOf("cardio:") === 0) kc += cardioKcal(cardioType(it.x), it);
+      else sec += it.sets * (45 + Math.min(180, it.g ? it.rest / 2 + 15 : it.rest));
+    });
+    if (sec) kc += A.FC.exerciseCal(L.met, sec / 60, body);
+    return Math.round(kc);
+  }
+  function recSolve(u, target) {
+    var R = T.rec, k = function (t, l) { return planKcal(u, buildPlan(u, { min: t, lvl: l, pump: R.pump, force: R.force, fin: R.fin })); };
+    var near = function (t) { var best = 0, d = 1e9; for (var l = 0; l < 5; l++) { var x = Math.abs(k(t, l) - target); if (x < d) { d = x; best = l; } } return best; };
+    var times = RTIMES.slice().sort(function (a, b) { return Math.abs(a - R.min) - Math.abs(b - R.min); });
+    for (var i = 0; i < times.length; i++) {
+      var t = times[i], lo = k(t, 0), hi = k(t, 4);
+      if (target >= lo * 0.95 && target <= hi * 1.03) return { min: t, lvl: near(t) };
+    }
+    return target > k(90, 4) ? { min: 90, lvl: 4, cap: k(90, 4) } : { min: 20, lvl: 0 };
+  }
+  function recBuild() { var u = me(), R = T.rec; R.plan = buildPlan(u, R); R.saved = null; }
+  function itemTxt(it) {
+    if (String(it.x).indexOf("cardio:") === 0) { var c = CARDIO[cardioType(it.x)] || CARDIO.other; return fmt(it.min) + " min · " + (it.kmh ? it.kmh + " km/h" + (+it.inc ? " · " + it.inc + "% incline" : "") : it.eff === "light" ? "easy" : it.eff === "hard" ? "hard" : "moderate") + (it.fin ? " · finisher" : ""); }
+    var timed = isTimedEx(it.x);
+    return it.sets + " × " + it.rg[0] + "–" + it.rg[1] + (timed ? " s" : "") + " · rest " + mmss(it.rest) + (it.drop ? " · drop set on the last" : "");
+  }
+  function recView(u) {
+    var R = T.rec, p = R.plan, kc = planKcal(u, p);
+    var h = '<div class="card rec">' + A.head("spark", "Recommend a workout", "", "rec")
+      + '<div class="slab">How long</div><div class="chips rtimes">' + RTIMES.map(function (t) { return '<button class="chip' + (t === R.min ? " on" : "") + '" data-tact="rcmin" data-v="' + t + '">' + t + " min</button>"; }).join("") + "</div>"
+      + '<div class="slab">Intensity</div><div class="seg seg5">' + LEVELS.map(function (L, i) { return '<button class="' + (i === R.lvl ? "on" : "") + '" data-tact="rclvl" data-v="' + i + '">' + L.n + "</button>"; }).join("") + "</div>"
+      + '<div class="g2 rcrow"><label class="f">Calories (about)<input id="rcK" inputmode="numeric" value="' + kc + '"></label>'
+      + '<button class="row sharerow" data-tact="rcpump" role="switch" aria-checked="' + !!R.pump + '"><div class="t"><b>Pump</b><small>' + (R.pump ? "Fewer muscles, supersets" : "Off") + '</small></div><span class="tog' + (R.pump ? " on" : "") + '"><i></i></span></button></div>'
+      + (R.note ? '<p class="hint rcnote">' + esc(R.note) + "</p>" : "")
+      + A.tip("rec", "Calories and intensity are linked: change one and the other follows. Typing calories picks the closest intensity, and changes the time if it can't be reached in the time chosen. Pump uses fewer muscles, higher reps (12 to 20) and short rests, with opposite muscles paired as supersets; on Intense and Brutal the last set of each is a drop set. A guide only: it doesn't know about injuries or how you feel today.")
+      + "</div>";
+    h += '<div class="card rplan"><div class="hlab">' + TI.sun + (p.kind === "cardio" ? "Cardio" : LEVELS[p.lvl].n + (p.pump ? " pump" : "")) + " · " + p.min + ' min</div><div class="hname">' + esc(p.name) + '</div><div class="hmeta">' + esc(p.lbl) + " · about " + fmt(kc) + " cal</div>"
+      + (p.kind === "cardio" ? '<div class="rcwarn">' + TI.body + "<div><b>Most of your muscles are still recovering</b><p>So here's a cardio session instead.</p></div></div>" : "")
+      + (p.why ? '<p class="hint">' + esc(p.why) + "</p>" : "");
+    h += '<div class="list rclist">' + p.items.map(function (it, i) {
+      var cd = String(it.x).indexOf("cardio:") === 0, x = exInfo(it.x);
+      return '<div class="rcx"><div class="row"><span class="ricon">' + (cd ? TI.run : it.g ? '<b class="sslet">' + it.g + "</b>" : TI.dumbbell) + '</span><div class="t"><b>' + esc(shortName(x.n)) + "</b><small>" + esc(itemTxt(it)) + (it.g ? " · superset " + it.g : "") + '</small></div><button class="x" data-tact="rcdel" data-i="' + i + '" aria-label="Remove">×</button></div>'
+        + '<button class="lnk rswap" data-tact="rcswap" data-i="' + i + '">' + (cd ? "Don't have this machine? Swap it" : "Don't have this machine? Swap for a different exercise") + "</button></div>";
+    }).join("") + "</div>";
+    if (!p.items.length) h += '<p class="empty">Nothing left. Change a setting to rebuild it.</p>';
+    if (p.kind === "cardio") h += '<button class="btn wide" data-tact="rcforce">' + TI.dumbbell + "Lift anyway</button>";
+    h += '<button class="btn pri wide xl" data-tact="rcstart"' + (p.items.length ? "" : " disabled") + ">" + TI.dumbbell + "Start this workout</button>"
+      + '<div class="g2 rcsave"><label class="f">Name<input id="rcName" value="' + esc(R.name || p.name + " · " + p.min + " min") + '"></label><div style="display:flex;align-items:flex-end"><button class="btn wide" data-tact="rcsave"' + (R.saved || !p.items.length ? " disabled" : "") + ">" + A.ICON.star + (R.saved ? "Saved" : "Save this workout") + "</button></div></div>"
+      + '<button class="btn ghost wide" data-tact="cancel">Back</button></div>';
+    return h;
+  }
+  // Another exercise for the same muscles using more common equipment
+  function altFor(u, id, usedList) {
+    var ne = noEquip(u), g = null, role = "c";
+    Object.keys(POOL).some(function (k) { if (POOL[k].c.indexOf(id) >= 0) { g = k; role = "c"; return true; } if (POOL[k].i.indexOf(id) >= 0) { g = k; role = "i"; return true; } });
+    if (!g) {
+      var x = exInfo(id), m = M[x.p[0]];
+      Object.keys(POOL).some(function (k) { if (k !== "rear" && POOL[k].m.indexOf(m) >= 0) { g = k; return true; } });
+      role = x.c ? "c" : "i"; if (!g) return null;
+    }
+    var mine = eqRank(id), ok = function (c) { return EXMAP[c] && c !== id && usedList.indexOf(c) < 0 && ne.indexOf(c) < 0; };
+    var same = POOL[g][role].filter(ok), other = POOL[g][role === "c" ? "i" : "c"].filter(ok);
+    var pick = function (l) { var lower = l.filter(function (c) { return eqRank(c) < mine; }); lower.sort(function (a, b) { return eqRank(a) - eqRank(b); }); return lower[0] || l.filter(function (c) { return eqRank(c) <= mine; })[0] || l[0]; };
+    return pick(same) || pick(other) || null;
+  }
+  function altCardio(u, type, usedTypes) {
+    var ne = noEquip(u);
+    return CMACH.filter(function (t) { return t !== type && ne.indexOf("cardio:" + t) < 0 && usedTypes.indexOf(t) < 0; })[0]
+      || CMACH.filter(function (t) { return t !== type && ne.indexOf("cardio:" + t) < 0; })[0] || null;
+  }
+  function noEquipHtml(u) {
+    var l = noEquip(u); if (!l.length) return "";
+    return '<div class="card">' + A.head("dumbbell", "Equipment you don't have", String(l.length), "noeq")
+      + '<div class="chips">' + l.map(function (id) { return '<button class="chip q" data-tact="noeqdel" data-x="' + esc(id) + '">' + esc(shortName(exInfo(id).n)) + " ×</button>"; }).join("") + "</div>"
+      + A.tip("noeq", "Things you've swapped out. Recommended workouts and swaps avoid them. Tap one to allow it again.") + "</div>";
+  }
+
   /* ---------- Routine editor ---------- */
   function editView(u) {
     var r = T.draft;
@@ -479,6 +697,11 @@
     var u = me();
     T.active = { id: uid(), rid: r ? r.id : "", name: r ? r.name : "Workout", start: Date.now(), date: A.today(), lastTick: 0, cur: 0, rest: null,
       exs: r ? r.items.map(function (it) { return String(it.x).indexOf("cardio:") === 0 ? newCardio(it.x, it.min) : newEx(u, it.x, it.sets, it.g, it.rest); }) : [] };
+    if (r) r.items.forEach(function (it, i) {
+      var e = T.active.exs[i]; if (!e) return;
+      if (it.rg) e.rg = it.rg; if (it.drop) e.drop = 1;
+      if (e.c && it.eff) { e.c.eff = it.eff; e.c.kmh = it.kmh || ""; e.c.inc = it.inc || ""; }
+    });
     T.overview = !T.active.exs.length;
     saveActive(); T.view = "home"; wake(true); render();
     var p = $("#pTrain"); if (p) p.scrollTop = 0;
@@ -580,7 +803,7 @@
       if (best[1] >= 60) return { txt: "Last time: " + setTxt(best[0], best[1], true) + ". Over a minute: add weight or a harder version rather than going longer.", range: [20, 60], up: true };
       return { txt: "Last time: " + setTxt(best[0], best[1], true) + ". Aim for " + (best[1] + 5) + " s this time.", range: [20, 60], kg: +best[0] || "", reps: best[1] + 5 };
     }
-    var x = exInfo(e.x), rg = repRange(x), st = stepFor(x), done = e.sets.filter(function (s) { return s.done; });
+    var x = exInfo(e.x), rg = e.rg || repRange(x), st = stepFor(x), done = e.sets.filter(function (s) { return s.done; });
     var sets = done.length ? done.map(function (s) { return [num(s.kg), Math.round(num(s.reps))]; }) : (e.prev || []);
     if (!sets.length) return { txt: "First time: pick a weight you can lift " + rg[0] + "–" + rg[1] + " times, stopping 1–2 reps short of failure.", range: rg };
     var live = done.length > 0, ref = live ? sets[sets.length - 1] : sets.reduce(function (a, b) { return e1rm(b[0], b[1]) > e1rm(a[0], a[1]) ? b : a; }, sets[0]);
@@ -618,6 +841,9 @@
       + demo(e.x) + '<h3 class="lname">' + esc(shortName(x.n)) + '</h3><div class="mchips">' + musChips(x) + "</div>"
       + (e.mode === "time" ? (pb && pb.ts ? '<div class="lpb">' + TI.trophy + "PB " + pb.ts + " s hold</div>" : "") : pb && pb.w ? '<div class="lpb">' + TI.trophy + "PB " + kgs(pb.w) + " kg × " + pb.wr + (pb.e1 ? '<span>· est. max ' + fmt(pb.e1) + " kg</span>" : "") + "</div>" : "");
     if (grp.length > 1) h += '<div class="ssnext">' + grp.map(function (i) { return '<span class="' + (i === k ? "on" : "") + '">' + esc(shortName(exInfo(w.exs[i].x).n)) + " " + doneCount(w.exs[i]) + "/" + setCount(w.exs[i]) + "</span>"; }).join('<i>→</i>') + "</div>";
+    if (e.rg || e.drop) h += '<div class="ptgt">' + TI.target + (e.rg ? "Target " + e.rg[0] + "–" + e.rg[1] + (e.mode === "time" ? " s" : " reps") : "") + (e.drop ? (e.rg ? " · " : "") + "<b>last set is a drop set</b>" : "") + "</div>";
+    if (e.drop && j === e.sets.length - 1) h += '<p class="hint dropnow">Drop set: after this set, lower the weight by about 25% and keep going until you can\'t, then log it.</p>';
+    if (!doneCount(e)) h += '<button class="lnk rswap" data-tact="lswap">Don\'t have this machine? Swap for a different exercise</button>';
     h += noteBox(u, e.x);
     var timed = e.mode === "time";
     h += '<div class="modesw"><button class="' + (timed ? "" : "on") + '" data-tact="mode" data-v="reps">Reps</button><button class="' + (timed ? "on" : "") + '" data-tact="mode" data-v="time">Time</button></div>';
@@ -722,7 +948,8 @@
   function finishKcal(u, w, min, effort) {
     var cd = cardioDone(w), cmin = cd.reduce(function (s, e) { return s + num(e.c.min); }, 0), ckc = cd.reduce(function (s, e) { return s + cardioKcal(cardioType(e.x), e.c); }, 0);
     var smin = Math.max(0, min), hasLift = w.exs.some(function (e) { return !isCardio(e) && doneCount(e); });
-    return { total: (hasLift ? A.FC.exerciseCal(EFFORT[effort], smin, A.bodyOf(u)) : 0) + ckc, cmin: cmin, ckc: ckc, smin: smin, hasLift: hasLift };
+    var met = w.plan && w.plan.eff === effort ? w.plan.met : EFFORT[effort]; // a recommended workout keeps its own level until changed
+    return { total: (hasLift ? A.FC.exerciseCal(met, smin, A.bodyOf(u)) : 0) + ckc, cmin: cmin, ckc: ckc, smin: smin, hasLift: hasLift };
   }
   function finishView(u) {
     var w = T.active, f = T.finish, min = f.min, fk = finishKcal(u, w, min, f.effort), kc = fk.total, total = Math.max(1, Math.round((Date.now() - w.start) / 60000));
@@ -924,7 +1151,7 @@
       A.changeMe(function (u) { u.routines = (u.routines || []).filter(function (x) { return x.id !== r.id; }); u.routines.push(r); });
       T.view = "home"; T.draft = null; render(); A.toast("Saved " + r.name);
     },
-    cancel: function () { T.view = "home"; T.draft = null; T.cardio = null; T.logMode = null; A.S.est = null; render(); },
+    cancel: function () { T.view = "home"; T.draft = null; T.cardio = null; T.logMode = null; T.rec = null; A.S.est = null; render(); },
     del: function () { var id = T.draft.id; A.changeMe(function (u) { u.routines = (u.routines || []).filter(function (x) { return x.id !== id; }); }); T.view = "home"; T.draft = null; render(); },
     pick: function (b) { T.picker = { mode: b.dataset.mode }; T.q = ""; T.mf = -1; T.custom = null; render(); setTimeout(function () { var q = $("#tpQ"); if (q && window.innerWidth > 700) q.focus(); }, 50); },
     pickdone: function () { T.picker = null; T.custom = null; render(); },
@@ -983,6 +1210,52 @@
     },
     cundo: function (b) { T.active.exs[+b.dataset.k].done = false; saveActive(); render(); },
     cmin: function (b) { var it = T.draft.items[+b.dataset.i]; it.min = Math.max(5, Math.min(180, (+it.min || 10) + +b.dataset.v)); render(); },
+    rec: function () {
+      if (T.active) return A.toast("Finish or discard the current workout first");
+      T.rec = { min: 45, lvl: 2, pump: false, force: false, fin: true, note: "", name: "" }; recBuild(); T.view = "rec"; render();
+      var p = $("#pTrain"); if (p) p.scrollTop = 0;
+    },
+    rcmin: function (b) { T.rec.min = +b.dataset.v; T.rec.note = ""; recBuild(); render(); },
+    rclvl: function (b) { T.rec.lvl = +b.dataset.v; T.rec.note = ""; recBuild(); render(); },
+    rcpump: function () { T.rec.pump = !T.rec.pump; T.rec.note = ""; recBuild(); render(); },
+    rcforce: function () { T.rec.force = true; recBuild(); render(); },
+    rcdel: function (b) { T.rec.plan.items.splice(+b.dataset.i, 1); T.rec.saved = null; render(); },
+    rcswap: function (b) {
+      var u = me(), p = T.rec.plan, it = p.items[+b.dataset.i]; if (!it) return;
+      if (String(it.x).indexOf("cardio:") === 0) {
+        var ty = cardioType(it.x), nt = altCardio(u, ty, p.items.map(function (x) { return cardioType(x.x); }));
+        if (!nt) return A.toast("No other machine to swap to");
+        addNoEquip(it.x); var np = cardioPiece(nt, it.min, p.lvl); np.fin = it.fin; p.items[+b.dataset.i] = np;
+        A.toast("Swapped to " + CARDIO[nt].n);
+      } else {
+        var alt = altFor(u, it.x, p.items.map(function (x) { return x.x; }));
+        if (!alt) return A.toast("No other exercise to swap to");
+        addNoEquip(it.x); var old = it.x; it.x = alt;
+        if (isTimedEx(alt) !== isTimedEx(old)) it.rg = isTimedEx(alt) ? [20, 45] : [10, 15];
+        A.toast("Swapped to " + shortName(exInfo(alt).n));
+      }
+      T.rec.saved = null; render();
+    },
+    rcstart: function () {
+      var R = T.rec, p = R.plan, L = LEVELS[p.lvl], nm = ($("#rcName") || {}).value || R.name || p.name;
+      startWorkout({ id: R.saved || "", name: nm, items: p.items });
+      if (T.active) { T.active.plan = { eff: L.eff, met: L.met, lvl: p.lvl }; saveActive(); }
+      T.rec = null;
+    },
+    rcsave: function () {
+      var R = T.rec, p = R.plan, nm = (($("#rcName") || {}).value || "").trim() || p.name, id = uid();
+      var items = p.items.map(function (it) { var o = { x: it.x, g: it.g || "" }; if (String(it.x).indexOf("cardio:") === 0) { o.min = it.min; o.eff = it.eff; o.kmh = it.kmh; o.inc = it.inc; } else { o.sets = it.sets; o.rest = it.rest; o.rg = it.rg; if (it.drop) o.drop = 1; } return o; });
+      A.changeMe(function (uu) { uu.routines = (uu.routines || []).concat([{ id: id, name: nm, days: [], items: items }]); });
+      R.saved = id; R.name = nm; render(); A.toast("Saved to My workouts");
+    },
+    lswap: function () {
+      var u = me(), w = T.active, e = w.exs[w.cur]; if (!e || isCardio(e) || doneCount(e)) return;
+      var alt = altFor(u, e.x, w.exs.map(function (x) { return x.x; })); if (!alt) return A.toast("No other exercise to swap to");
+      addNoEquip(e.x);
+      var n = newEx(u, alt, e.sets.length, e.g, e.rest); if (e.rg) n.rg = isTimedEx(alt) !== isTimedEx(e.x) ? (isTimedEx(alt) ? [20, 45] : [10, 15]) : e.rg; if (e.drop) n.drop = 1;
+      w.exs[w.cur] = n; T.sw = null; saveActive(); render(); A.toast("Swapped to " + shortName(exInfo(alt).n));
+    },
+    noeqdel: function (b) { var id = b.dataset.x; A.changeMe(function (uu) { if (uu.priv && uu.priv.noEquip) uu.priv.noEquip = uu.priv.noEquip.filter(function (x) { return x !== id; }); }); },
     lognew: function () { T.view = "cardio"; T.logMode = "cardio"; T.cardio = { parts: [newPart()], watch: "" }; A.S.edit = null; render(); var p = $("#pTrain"); if (p) p.scrollTop = 0; },
     lmode: function (b) { T.logMode = b.dataset.v; render(); },
     ivadd: function () { var ps = T.cardio.parts, l = ps[ps.length - 1]; ps.push(newPart(l.type, l.eff)); render(); },
@@ -1018,7 +1291,7 @@
       if (!any) return A.toast("Tick at least one set first");
       var cm = cardioDone(T.active).reduce(function (s, e) { return s + num(e.c.min); }, 0), am = activeMinutes(T.active);
       if (am == null) am = Math.max(1, Math.round((Date.now() - T.active.start) / 60000) - cm); // older sets without times
-      T.finish = { min: am, effort: "normal", kcal: null };
+      T.finish = { min: am, effort: (T.active.plan && T.active.plan.eff) || "normal", kcal: null };
       render();
     },
     effort: function (b) { T.finish.effort = b.dataset.v; T.finish.min = Math.max(1, Math.round(+($("#fnMin") || {}).value || T.finish.min)); T.finish.kcal = null; render(); },
@@ -1106,8 +1379,17 @@
         var whole = Math.ceil(left); if (whole <= 3 && whole >= 1 && T.lastTickBeep !== whole) { T.lastTickBeep = whole; tick(); }
       }
     }, 250);
+    document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.id === "rcK") e.target.blur(); });
     document.addEventListener("change", function (e) {
       var t = e.target;
+      if (t.id === "rcK" && T.rec) {
+        var u = me(), want = Math.round(+t.value || 0), R = T.rec; if (!(want > 0)) { render(); return; }
+        var sv = recSolve(u, want), moved = sv.min !== R.min; R.min = sv.min; R.lvl = sv.lvl; recBuild();
+        var got = planKcal(u, R.plan);
+        R.note = sv.cap ? "The most this can plan is about " + fmt(sv.cap) + " cal (90 min, Brutal)." : (moved ? "Changed to " + sv.min + " min to get there. " : "") + (Math.abs(got - want) > 15 ? "Closest is about " + fmt(got) + " cal (" + LEVELS[R.lvl].n + ")." : LEVELS[R.lvl].n + " gets you about " + fmt(got) + " cal.");
+        render(); return;
+      }
+      if (t.id === "rcName" && T.rec) T.rec.name = t.value;
       if (t.dataset && t.dataset.ct != null && T.cardio) { T.cardio.parts[+t.dataset.ct].type = t.value; render(); }
       if (t.dataset && t.dataset.lct != null && T.active) { T.active.exs[+t.dataset.lct].x = "cardio:" + t.value; saveActive(); render(); }
     });
@@ -1115,6 +1397,6 @@
     if (T.active) wake(true);
   }
 
-  window.FCTrain = { init: init, render: render, doneLog: function () { if (T.view === "cardio") { T.view = "home"; T.cardio = null; T.logMode = null; } }, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
-    _test: { activeMinutes: activeMinutes, recovery: recovery, e1rm: e1rm, search: search, exInfo: exInfo, suggestion: suggestion, cardioMET: cardioMET, cardioKcal: cardioKcal } };
+  window.FCTrain = { init: init, render: render, noEquipHtml: function (u) { return noEquipHtml(u); }, doneLog: function () { if (T.view === "cardio") { T.view = "home"; T.cardio = null; T.logMode = null; } }, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
+    _test: { buildPlan: buildPlan, planKcal: planKcal, recSolve: recSolve, altFor: altFor, LEVELS: LEVELS, activeMinutes: activeMinutes, recovery: recovery, e1rm: e1rm, search: search, exInfo: exInfo, suggestion: suggestion, cardioMET: cardioMET, cardioKcal: cardioKcal } };
 })();
