@@ -461,6 +461,17 @@
     { n: "Chest and back pump", lbl: "chest and back", g: ["chest", "back"], s: ["chest.c", "back.c", "chest.i", "back.c", "chest.i", "back.i", "chest.c", "back.c"] },
     { n: "Leg pump", lbl: "quads and hamstrings", g: ["quads", "hams"], s: ["quads.i", "hams.i", "quads.c", "hams.c", "calves.i", "glutes.i", "quads.c", "hams.i"] }
   ];
+  // Muscles you can choose yourself (overrides recovery)
+  var MCHOICE = [["chest", "Chest", ["chest"]], ["back", "Back", ["back", "rear"]], ["shoulders", "Shoulders", ["shoulders", "rear"]], ["biceps", "Biceps", ["biceps"]], ["triceps", "Triceps", ["triceps"]],
+    ["legs", "Legs", ["quads", "hams", "glutes", "calves"]], ["glutes", "Glutes", ["glutes"]], ["abs", "Abs", ["abs"]]];
+  function customTpl(mus) {
+    var picks = MCHOICE.filter(function (c) { return mus.indexOf(c[0]) >= 0; }), groups = [], seen = {};
+    picks.forEach(function (c) { c[2].forEach(function (g) { if (!seen[g] && !(g === "rear" && mus.length > 1 && mus.indexOf("back") < 0 && mus.indexOf("shoulders") < 0)) { seen[g] = 1; groups.push(g); } }); });
+    var slots = [], pass = ["c", "i", "c", "i", "i"];
+    pass.forEach(function (r) { groups.forEach(function (g) { var role = POOL[g][r].length ? r : "i"; if (slots.length < 8 && POOL[g][role].length) slots.push(g + "." + role); }); });
+    var names = picks.map(function (c) { return c[1].toLowerCase(); }), lbl = names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0];
+    return { n: lbl.charAt(0).toUpperCase() + lbl.slice(1), lbl: "your choice", g: groups.filter(function (g) { return g !== "rear" && g !== "calves"; }), s: slots, custom: 1 };
+  }
   var EQRANK = { "body only": 0, "": 0, dumbbell: 1, bands: 2, kettlebells: 3, barbell: 4, "e-z curl bar": 4, cable: 5, machine: 6, other: 6 };
   var CMACH = ["treadmill", "bike", "row", "elliptical", "stairs", "walk", "run", "swim"];
   function eqRank(id) { var r = EQRANK[exInfo(id).e]; return r == null ? 6 : r; }
@@ -502,7 +513,8 @@
   function buildPlan(u, st) {
     var L = LEVELS[st.lvl], rec = recovery(u.id), pump = st.pump;
     var legsSore = Math.max(groupF(rec, "quads").f, groupF(rec, "hams").f) > 0.3;
-    var tpl = pickTpl(pump ? PUMPS : TPL, rec, st.force);
+    var custom = st.mus && st.mus.length ? customTpl(st.mus) : null;
+    var tpl = custom || pickTpl(pump ? PUMPS : TPL, rec, st.force), forceG = st.force || !!custom;
     var fresh = [], sore = [];
     ["chest", "back", "shoulders", "biceps", "triceps", "quads", "hams", "glutes"].forEach(function (g) { var x = groupF(rec, g); if (x.f > 0.3) sore.push([g, groupLeft(rec, g)]); else fresh.push(g); });
     sore.sort(function (a, b) { return b[1] - a[1]; });
@@ -514,7 +526,7 @@
     var budget = (st.min - finMin) * 60 - 180, spent = 0, items = [], used = {};
     var restP = Math.max(30, Math.round(L.rest[1] * 0.6 / 5) * 5);
     var add = function (slot, k, force) {
-      var g = slot.split(".")[0]; if (groupF(rec, g).f > 0.5 && !st.force) return false;
+      var g = slot.split(".")[0]; if (groupF(rec, g).f > 0.5 && !forceG) return false;
       var id = pickEx(u, slot, used); if (!id) return false;
       var comp = slot.split(".")[1] === "c", timed = isTimedEx(id);
       var full = pump ? L.sets[1] : L.sets[comp ? 0 : 1], rest = timed ? 60 : pump ? restP : L.rest[comp ? 0 : 1];
@@ -531,7 +543,8 @@
     tpl.s.forEach(function (sl, k) { var g = sl.split(".")[0]; if (!seen[g]) { seen[g] = 1; order.push(k); } });
     tpl.s.forEach(function (sl, k) { if (order.indexOf(k) < 0) order.push(k); });
     order.forEach(function (k) { add(tpl.s[k], k, items.length < 2); });
-    if (budget - spent > 240 && !pump) add("abs.i", 99, false);
+    if (budget - spent > 240 && !pump && !custom) add("abs.i", 99, false);
+    if (custom) { var sorec = custom.g.filter(function (g) { return groupF(rec, g).f > 0.3; }); if (sorec.length) why = "Heads up, still recovering: " + sorec.map(function (g) { return POOL[g].n + " (" + hoursText(groupLeft(rec, g)) + ")"; }).join(", ") + ". Go lighter on those if they feel sore."; else why = "All the muscles you picked are fresh."; }
     items.sort(function (a, b) { return a.k - b.k; });
     var grow = true; // spare time: add sets, big lifts first
     while (grow) {
@@ -555,7 +568,7 @@
     items = ord;
     var out = items.map(function (it) { return { x: it.x, sets: it.sets, g: it.g, rest: it.rest, rg: it.rg, drop: it.drop || 0, c: it.c }; });
     if (finMin) out = out.concat(cardioSplit(u, finMin, st.lvl, st.lvl === 4 ? 3 : 1, tpl.n === "Legs" || legsSore).map(function (c) { c.fin = 1; return c; }));
-    return { kind: "lift", name: tpl.n, lbl: tpl.lbl, why: why, items: out, lvl: st.lvl, min: st.min, pump: pump };
+    return { kind: "lift", name: tpl.n, lbl: tpl.lbl, why: why, items: out, lvl: st.lvl, min: st.min, pump: pump, custom: !!custom };
   }
   function planKcal(u, p) {
     var L = LEVELS[p.lvl], sec = 0, kc = 0, body = A.bodyOf(u);
@@ -567,7 +580,7 @@
     return Math.round(kc);
   }
   function recSolve(u, target) {
-    var R = T.rec, k = function (t, l) { return planKcal(u, buildPlan(u, { min: t, lvl: l, pump: R.pump, force: R.force, fin: R.fin })); };
+    var R = T.rec, k = function (t, l) { return planKcal(u, buildPlan(u, { min: t, lvl: l, pump: R.pump, force: R.force, fin: R.fin, mus: R.mus })); };
     var near = function (t) { var best = 0, d = 1e9; for (var l = 0; l < 5; l++) { var x = Math.abs(k(t, l) - target); if (x < d) { d = x; best = l; } } return best; };
     var times = RTIMES.slice().sort(function (a, b) { return Math.abs(a - R.min) - Math.abs(b - R.min); });
     for (var i = 0; i < times.length; i++) {
@@ -589,6 +602,8 @@
       + '<div class="slab">Intensity</div><div class="seg seg5">' + LEVELS.map(function (L, i) { return '<button class="' + (i === R.lvl ? "on" : "") + '" data-tact="rclvl" data-v="' + i + '">' + L.n + "</button>"; }).join("") + "</div>"
       + '<div class="g2 rcrow"><label class="f">Calories (about)<input id="rcK" inputmode="numeric" value="' + kc + '"></label>'
       + '<button class="row sharerow" data-tact="rcpump" role="switch" aria-checked="' + !!R.pump + '"><div class="t"><b>Pump</b><small>' + (R.pump ? "Fewer muscles, supersets" : "Off") + '</small></div><span class="tog' + (R.pump ? " on" : "") + '"><i></i></span></button></div>'
+      + '<button class="row sharerow rcmus" id="rcMus" data-tact="rcmusopen" aria-expanded="' + !!R.musOpen + '"><div class="t"><b>Muscles</b><small>' + (R.mus.length ? esc(customTpl(R.mus).n) : "Auto, by recovery") + '</small></div><span class="lnk">' + (R.musOpen ? "Done" : "Change") + "</span></button>"
+      + (R.musOpen ? '<div class="chips rmchips"><button class="chip' + (R.mus.length ? "" : " on") + '" data-tact="rcmus" data-v="">Auto</button>' + MCHOICE.map(function (c) { return '<button class="chip' + (R.mus.indexOf(c[0]) >= 0 ? " on" : "") + '" data-tact="rcmus" data-v="' + c[0] + '">' + c[1] + "</button>"; }).join("") + "</div>" : "")
       + (R.note ? '<p class="hint rcnote">' + esc(R.note) + "</p>" : "")
       + A.tip("rec", "Calories and intensity are linked: change one and the other follows. Typing calories picks the closest intensity, and changes the time if it can't be reached in the time chosen. Pump uses fewer muscles, higher reps (12 to 20) and short rests, with opposite muscles paired as supersets; on Intense and Brutal the last set of each is a drop set. A guide only: it doesn't know about injuries or how you feel today.")
       + "</div>";
@@ -601,7 +616,7 @@
         + '<button class="lnk rswap" data-tact="rcswap" data-i="' + i + '">' + (cd ? "Don't have this machine? Swap it" : "Don't have this machine? Swap for a different exercise") + "</button></div>";
     }).join("") + "</div>";
     if (!p.items.length) h += '<p class="empty">Nothing left. Change a setting to rebuild it.</p>';
-    if (p.kind === "cardio") h += '<button class="btn wide" data-tact="rcforce">' + TI.dumbbell + "Lift anyway</button>";
+    if (p.kind === "cardio") h += '<div class="btns"><button class="btn" style="flex:1" data-tact="rcforce">' + TI.dumbbell + 'Lift anyway</button><button class="btn" style="flex:1" data-tact="rcmuspick">Choose muscles anyway</button></div>';
     h += '<button class="btn pri wide xl" data-tact="rcstart"' + (p.items.length ? "" : " disabled") + ">" + TI.dumbbell + "Start this workout</button>"
       + '<div class="g2 rcsave"><label class="f">Name<input id="rcName" value="' + esc(R.name || p.name + " · " + p.min + " min") + '"></label><div style="display:flex;align-items:flex-end"><button class="btn wide" data-tact="rcsave"' + (R.saved || !p.items.length ? " disabled" : "") + ">" + A.ICON.star + (R.saved ? "Saved" : "Save this workout") + "</button></div></div>"
       + '<button class="btn ghost wide" data-tact="cancel">Back</button></div>';
@@ -1212,12 +1227,19 @@
     cmin: function (b) { var it = T.draft.items[+b.dataset.i]; it.min = Math.max(5, Math.min(180, (+it.min || 10) + +b.dataset.v)); render(); },
     rec: function () {
       if (T.active) return A.toast("Finish or discard the current workout first");
-      T.rec = { min: 45, lvl: 2, pump: false, force: false, fin: true, note: "", name: "" }; recBuild(); T.view = "rec"; render();
+      T.rec = { min: 45, lvl: 2, pump: false, force: false, fin: true, note: "", name: "", mus: [], musOpen: false }; recBuild(); T.view = "rec"; render();
       var p = $("#pTrain"); if (p) p.scrollTop = 0;
     },
     rcmin: function (b) { T.rec.min = +b.dataset.v; T.rec.note = ""; recBuild(); render(); },
     rclvl: function (b) { T.rec.lvl = +b.dataset.v; T.rec.note = ""; recBuild(); render(); },
     rcpump: function () { T.rec.pump = !T.rec.pump; T.rec.note = ""; recBuild(); render(); },
+    rcmusopen: function () { T.rec.musOpen = !T.rec.musOpen; render(); },
+    rcmuspick: function () { T.rec.musOpen = true; render(); var el = $("#rcMus"); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); },
+    rcmus: function (b) {
+      var R = T.rec, v = b.dataset.v;
+      if (!v) R.mus = []; else { var i = R.mus.indexOf(v); if (i >= 0) R.mus.splice(i, 1); else R.mus.push(v); }
+      R.note = ""; R.name = ""; recBuild(); render();
+    },
     rcforce: function () { T.rec.force = true; recBuild(); render(); },
     rcdel: function (b) { T.rec.plan.items.splice(+b.dataset.i, 1); T.rec.saved = null; render(); },
     rcswap: function (b) {
