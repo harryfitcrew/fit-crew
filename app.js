@@ -132,7 +132,7 @@
       .then(function (r) { return r.json(); })
       .then(function (j) {
         clearTimeout(timer);
-        if (!j.ok) { var e = new Error(j.error || "Server error"); e.auth = j.auth === false; e.noClaude = !!j.noClaude; e.pin = !!j.pin; throw e; }
+        if (!j.ok) { var e = new Error(j.error || "Server error"); e.auth = j.auth === false; e.noClaude = !!j.noClaude; e.pin = !!j.pin; e.noAccess = !!j.noAccess; e.removed = !!j.removed; throw e; }
         return j;
       }, function (e) { clearTimeout(timer); throw e.name === "AbortError" ? new Error("Timed out") : e; });
   }
@@ -182,6 +182,9 @@
           if (!S.gate) S.gate = "enter"; S.lastSync = Date.now(); return;
         }
         S.cache = { users: j.users || [], days: j.days || {}, kudos: j.kudos || [] };
+        var oldPend = S.acc && S.acc.pending;
+        S.acc = j.acc || null; // null: older script without owner/access, so everyone has Claude
+        if (S.acc && S.acc.owner && S.members && S.acc.pending !== oldPend) S.members = null; // someone asked: refresh the list
         applyPending();
         persist();
         S.lastSync = Date.now();
@@ -197,9 +200,14 @@
         S.err = e.message || "Offline";
         if (e.auth) { S.code = ""; lsSet(LS.code, ""); }
         if (e.pin && S.me) { S.pin = ""; lsSet(LS.pin, ""); if (!S.gate) S.gate = "enter"; S.err = ""; }
+        if (e.removed) { // the owner removed this profile: forget it on this phone
+          S.me = ""; S.pin = ""; S.outbox = []; S.acc = null; S.gate = null; lsSet(LS.me, ""); lsSet(LS.pin, ""); persist(); S.err = "";
+          toast("You were removed from this crew by the owner.", true);
+        }
       })
       .then(function () {
         S.syncing = false;
+        paintGear();
         autoDiary();
         render(true);
         checkBadges();
@@ -799,6 +807,52 @@
     return h + "</div>";
   }
 
+  /* ---------- Claude access (the owner approves who can use it) ---------- */
+  function canClaude() { return !!S.claude && (!S.acc || !!S.acc.claude); }
+  function accessBox(what) {
+    var a = S.acc || {}, who = a.ownerName || "the owner";
+    return '<div class="accbox">' + ICON.spark + "<div><b>" + esc(what) + " need access</b><p>"
+      + (a.req ? "Requested. Waiting for " + esc(who) + " to approve it." : !a.hasOwner ? "This crew doesn't have an owner yet. You can still ask, and they'll see it once they're set up." : esc(who) + " pays for Claude, so ask first. Everything else in the app is free to use.") + "</p>"
+      + (a.req ? "" : '<button class="btn sm" data-act="reqaccess">Request access</button>') + "</div></div>";
+  }
+  function memberRow(m) {
+    var open = S.memOpen === m.id, me1 = m.id === S.me;
+    var when = (m.seen ? agoText(m.seen) : m.last ? "Last saved " + m.last.slice(0, 10) : "") + (m.joined ? " · joined " + shortDate(m.joined) : "");
+    var h = '<div class="mem' + (open ? " open" : "") + '"><div class="row"><span class="av" style="background:' + esc(m.color || COLOURS[0]) + '">' + initial(m.name) + '</span><div class="t tap" data-act="memopen" data-id="' + m.id + '" role="button"><b>' + esc(m.name) + (m.owner ? " (owner" + (me1 ? ", you" : "") + ")" : "") + "</b><small>" + esc(when) + "</small></div>";
+    if (m.owner) h += '<span class="mtag on">Claude</span>';
+    else if (m.req && !m.claude) h += '<button class="btn pri sm" data-act="accset" data-id="' + m.id + '" data-on="1">Approve</button><button class="btn ghost sm" data-act="accset" data-id="' + m.id + '" data-on="0">Decline</button>';
+    else h += '<button class="mtog" data-act="accset" data-id="' + m.id + '" data-on="' + (m.claude ? 0 : 1) + '" role="switch" aria-checked="' + m.claude + '" aria-label="Claude access for ' + esc(m.name) + '"><small>Claude</small><span class="tog' + (m.claude ? " on" : "") + '"><i></i></span></button>';
+    h += "</div>";
+    if (m.req && !m.claude) h += '<p class="hint mreq">Asked for Claude access ' + esc(shortDate(FC.isoDate(new Date(m.req)))) + ".</p>";
+    if (open && !m.owner) {
+      if (S.memDel === m.id) {
+        h += '<div class="memdel"><b>Remove ' + esc(m.name) + "?</b><p>This deletes all of their food, workouts, weigh-ins and high fives for good, and this profile can't come back. They could only join again as someone new, without Claude access.</p>"
+          + '<label class="f">Type ' + esc(m.name) + ' to confirm<input id="memConf" data-name="' + esc(m.name) + '" autocomplete="off"></label>'
+          + '<div class="btns"><button class="btn danger" style="flex:1" data-act="memremove" data-id="' + m.id + '" disabled>' + ICON.trash + "Remove for good</button><button class=\"btn ghost\" data-act=\"memdelno\">Cancel</button></div></div>";
+      } else h += '<div class="memmore"><button class="lnk danger" data-act="memdelask" data-id="' + m.id + '">Remove from the app…</button></div>';
+    }
+    return h + "</div>";
+  }
+  function ownerCard() {
+    var a = S.acc; if (!a) return "";
+    if (!a.hasOwner) return '<div class="card">' + head("lock", "Owner", "", "own") + '<p class="hint">Nobody owns this crew yet. The owner pays for Claude, approves who can use it and can remove people. Only claim this if that\'s you.</p><button class="btn wide" data-act="claimowner">' + ICON.lock + "Claim owner</button></div>";
+    if (!a.owner) return "";
+    if (!S.members && !S.memLoading) loadMembers();
+    var list = S.members || [];
+    var h = '<div class="card">' + head("users", "Members", list.length ? String(list.length) : "", "own")
+      + A_tip("own", "Only you see this. People can join with the invite link and use the free features. Claude features (meal and workout estimates) need your approval, and you can turn them off again. Removing someone deletes all of their data.");
+    if (S.memErr) h += '<p class="hint">' + esc(S.memErr) + "</p>";
+    h += list.length ? '<div class="list mems">' + list.map(memberRow).join("") + "</div>" : '<p class="empty">' + (S.memLoading ? "Loading..." : "No members yet.") + "</p>";
+    return h + "</div>";
+  }
+  function A_tip(k, t) { return tip(k, t); }
+  function loadMembers() {
+    S.memLoading = true;
+    call("members").then(function (j) { S.members = j.members || []; S.memErr = ""; S.memLoading = false; if (S.acc) S.acc.pending = S.members.filter(function (m) { return m.req && !m.claude; }).length; render(); paintGear(); },
+      function (e) { S.memLoading = false; S.memErr = "Couldn't load members (" + e.message + ")."; render(); });
+  }
+  function paintGear() { var g = $(".hbtns .gear"); if (g) g.classList.toggle("dot", !!(S.acc && S.acc.owner && S.acc.pending)); }
+
   /* ---------- Meal estimate with Claude (photo and/or description) ---------- */
   function mealTotals(items) {
     var t = { kcal: 0, p: 0, c: 0, f: 0 };
@@ -810,6 +864,7 @@
   function photoNote() { var n = photosLeft(); return n == null ? "" : '<p class="hint pleft' + (n ? "" : " none") + '">' + ICON.camera + (n ? n + " photo" + (n === 1 ? "" : "s") + " left today" : "No photos left today. Describe the meal in words instead.") + "</p>"; }
   function mealBlock() {
     if (!S.claude) return "";
+    if (!canClaude()) return accessBox("Claude meal estimates");
     if (photosLeft() === 0 && S.mealImg) S.mealImg = null; // out of photos: estimate from the words only
     var r = S.meal, h = '<div class="meal">';
     if (r) {
@@ -936,8 +991,9 @@
       }).join("") + (S.est.assumptions ? '<p class="hint">' + esc(S.est.assumptions) + "</p>" : "")
         + tip("ex", "Net calories above resting, using your weight, height, age and sex. Got a watch reading? Type it below to override.")
         + '<div class="g2"><label class="f">Calories to log<input id="eK" inputmode="numeric" value="' + esc(dv("eK", tot)) + '"></label><div style="display:flex;align-items:flex-end;gap:8px"><button class="btn pri" style="flex:1" data-act="addest">Log it</button><button class="btn ghost" data-act="clearest" aria-label="Discard">×</button></div></div></div>';
-    } else h += '<button class="btn pri wide" data-act="estimate">' + ICON.spark + (S.claude ? "Estimate with Claude" : "Estimate") + "</button>"
-      + tip("ex", S.claude ? "Claude reads what you did and works out the calories. Each estimate uses a small amount of your Claude credit. If Claude can't be reached, the free built-in estimate is used." : "The built-in estimate reads what you did and works out the calories. It's free.");
+    } else h += '<button class="btn pri wide" data-act="estimate">' + ICON.spark + (canClaude() ? "Estimate with Claude" : "Estimate") + "</button>"
+      + (S.claude && !canClaude() ? '<p class="hint">Using the free built-in estimate. ' + (S.acc && S.acc.req ? "Claude access requested." : '<button class="lnk" data-act="reqaccess">Request Claude access</button>') + "</p>" : "")
+      + tip("ex", canClaude() ? "Claude reads what you did and works out the calories. Each estimate uses a small amount of your Claude credit. If Claude can't be reached, the free built-in estimate is used." : "The built-in estimate reads what you did and works out the calories. It's free.");
     return h + "</div>";
   }
 
@@ -1006,6 +1062,7 @@
       + '<button class="btn pri wide" data-act="saveprofile">Save profile</button></div></div>';
     h += sharingCard(u);
     if (window.FCTrain) h += FCTrain.noEquipHtml(u);
+    h += ownerCard();
     h += '<div class="card">' + head("lock", "Security") + '<div class="stack">' + (S.pinless ? '<p class="hint">PINs need the updated Google script.</p>' : '<button class="btn wide" data-act="changepin">' + ICON.lock + "Change my PIN</button>")
       + '<button class="btn ghost wide" data-act="switch">Switch person on this phone</button></div></div>';
     h += '<div class="card">' + head("users", "Crew", "", "crew") + '<div class="stack"><button class="btn wide" data-act="invite">' + ICON.share + 'Share invite link</button>' + tip("crew", "Anyone with the link can join the crew. Only send it to people you want in.")
@@ -1249,11 +1306,36 @@
     },
     diary: function () { pullDiary(S.date); },
     gotrain: function () { goTab(2); },
+    reqaccess: function (b) {
+      b.disabled = true;
+      call("requestAccess").then(function (j) { if (S.acc) { if (j.already) S.acc.claude = true; else S.acc.req = true; } render(); toast(j.already ? "You already have Claude access" : "Asked. You'll get Claude once it's approved."); }, function (e) { b.disabled = false; toast(e.message); });
+    },
+    claimowner: function (b) {
+      b.disabled = true;
+      call("claimOwner").then(function () { toast("You're the owner now"); S.members = null; return sync(); }, function (e) { b.disabled = false; toast(e.message); sync(); });
+    },
+    memopen: function (b) { S.memOpen = S.memOpen === b.dataset.id ? null : b.dataset.id; S.memDel = null; render(); },
+    memdelask: function (b) { S.memDel = b.dataset.id; render(); var i = $("#memConf"); if (i) i.focus(); },
+    memdelno: function () { S.memDel = null; render(); },
+    accset: function (b) {
+      var id = b.dataset.id, on = b.dataset.on === "1"; b.disabled = true;
+      call("setAccess", { userId: id, on: on }).then(function () { (S.members || []).forEach(function (m) { if (m.id === id) { m.claude = on; m.req = ""; } }); if (S.acc) S.acc.pending = (S.members || []).filter(function (m) { return m.req && !m.claude; }).length; render(); paintGear(); },
+        function (e) { b.disabled = false; toast(e.message); });
+    },
+    memremove: function (b) {
+      var id = b.dataset.id, inp = $("#memConf"), m = (S.members || []).filter(function (x) { return x.id === id; })[0];
+      if (!m || !inp || inp.value.trim().toLowerCase() !== String(m.name).trim().toLowerCase()) return toast("Type their name to confirm");
+      b.disabled = true; b.textContent = "Removing...";
+      call("removeUser", { userId: id }).then(function () {
+        S.members = (S.members || []).filter(function (x) { return x.id !== id; }); S.memOpen = null; S.memDel = null;
+        S.cache.users = S.cache.users.filter(function (u) { return u.id !== id; }); toast(m.name + " was removed"); render(); sync();
+      }, function (e) { b.disabled = false; toast(e.message); render(); });
+    },
     estimate: function (b) {
       var text = val("eText"); if (!text) return toast("Describe the workout first");
       var u = me(), body = bodyOf(u);
       var local = function (why) { S.est = FC.parseWorkout(text); if (why) S.est.assumptions = why + " " + S.est.assumptions; delete S.draft.eK; renderMe(); };
-      if (!S.claude) return local("");
+      if (!canClaude()) return local("");
       b.disabled = true; b.textContent = "Asking Claude...";
       call("estimate", { userId: u.id, text: text, weightKg: body.kg })
         .then(function (j) {
@@ -1325,7 +1407,7 @@
     pinretry: function () { S.pinErr = ""; checkPin(); render(); },
     pincancel: function () { S.gate = null; S.pinBuf = ""; S.pinErr = ""; render(); },
     changepin: function () { closeSheet(); S.gate = "change-new"; S.pinBuf = ""; S.pinErr = ""; render(); },
-    settings: function () { openSheet("settings"); },
+    settings: function () { S.members = null; S.memOpen = null; S.memDel = null; openSheet("settings"); },
     share: function (b) {
       var id = b.dataset.id;
       changeMe(function (u) { var h = u.hide || []; var i = h.indexOf(id); if (i >= 0) h.splice(i, 1); else h.push(id); u.hide = h; });
@@ -1372,6 +1454,7 @@
     if (e.key === "Escape" && S.sheet) closeSheet();
   });
   document.addEventListener("input", function (e) {
+    if (e.target.id === "memConf") { var mb = $('[data-act="memremove"]'); if (mb) mb.disabled = e.target.value.trim().toLowerCase() !== String(e.target.dataset.name).trim().toLowerCase(); return; }
     if (e.target.id) S.draft[e.target.id] = e.target.value;
     if (e.target.id === "sG" && S.scan) { var sc = $("#sCalc"); if (sc) sc.innerHTML = scanCalcText(S.scan, parseFloat(String(e.target.value).replace(",", ".")) || 0); }
     if (/^f[PCF]$/.test(e.target.id)) { var k = $("#fK"); if (k) k.placeholder = FC.macroCal(dv("fP"), dv("fC"), dv("fF")) || ""; }

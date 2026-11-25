@@ -609,6 +609,25 @@ textarea{resize:vertical;min-height:70px}
 .wkchips .chip:disabled{opacity:.45}
 .wkhint{display:flex;gap:8px;align-items:flex-start;color:var(--muted);font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:-4px 0 12px}
 .wkhint svg{width:16px;height:16px;flex:none;color:var(--accent);margin-top:1px}
+/* Owner, members, Claude access */
+.accbox{display:flex;gap:10px;align-items:flex-start;background:rgba(var(--acc-rgb),.07);border:1px solid rgba(var(--acc-rgb),.3);border-radius:14px;padding:12px;margin:10px 0}
+.accbox>svg{width:20px;height:20px;flex:none;color:var(--accent);margin-top:2px}
+.accbox p{margin:3px 0 8px;color:var(--muted);font-size:13px}
+.mems .mem{border-bottom:1px solid var(--line);padding:2px 0}
+.mems .mem:last-child{border-bottom:0}
+.mem .row{gap:8px}
+.mem .btn.sm{padding:6px 10px}
+.mtog{display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--muted);padding:4px}
+.mtog small{font-size:11px}
+.mtag{font-size:11px;color:var(--accent);border:1px solid rgba(var(--acc-rgb),.4);border-radius:999px;padding:2px 8px}
+.mreq{margin:-2px 0 6px 44px;color:var(--warn)}
+.memmore{display:flex;justify-content:flex-end;padding:2px 0 8px}
+.lnk.danger{color:var(--bad);font-weight:600;font-size:12px}
+.memdel{background:rgba(var(--bad-rgb),.08);border:1px solid rgba(var(--bad-rgb),.4);border-radius:14px;padding:12px;margin:4px 0 10px;display:flex;flex-direction:column;gap:8px}
+.memdel p{margin:0;color:var(--muted);font-size:13px}
+.memdel b{color:var(--bad)}
+.gear{position:relative}
+.gear.dot::after{content:"";position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 2px var(--bg)}
 /* Timed exercises */
 .modesw{display:inline-flex;margin:12px auto 0;background:var(--surface);border-radius:999px;padding:3px;gap:2px;border:1px solid var(--line)}
 .live .modesw{display:flex;width:max-content}
