@@ -225,14 +225,14 @@
   }
   function changeDay(date, fn) {
     var u = me(); if (!u) return;
-    var before = FC.assess(u, getDay(u.id, date), isFinal(date)).state;
+    var before = FC.assess(u, getDay(u.id, date), isFinal(date), date).state;
     var d = clone(getDay(u.id, date) || { food: [], ex: [] });
     d.food = d.food || []; d.ex = d.ex || [];
     fn(d);
     d.updated = Date.now();
     S.cache.days[u.id + "|" + date] = d;
     queue({ action: "saveDay", userId: u.id, date: date, day: d });
-    var after = FC.assess(u, d, isFinal(date)).state;
+    var after = FC.assess(u, d, isFinal(date), date).state;
     if (after === "good" && before !== "good") { celebrate(); toast("On track. Nice work."); }
     render();
   }
@@ -288,7 +288,7 @@
   function scoreRows() {
     var t = today(), ev = evening();
     return users().map(function (u) {
-      var a = FC.assess(u, getDay(u.id, t), ev);
+      var a = FC.assess(u, getDay(u.id, t), ev, t);
       var wk = FC.weekPoints(u, getDay, t, ev);
       var st = FC.streak(u, getDay, t, ev);
       var w = FC.weightStats(u);
@@ -362,7 +362,7 @@
   function barChart(u, days) {
     var W = 340, H = 140, L = 34, R = 6, T = 8, B = 20, n = days.length, bw = (W - L - R) / n;
     var goal = +u.goalKcal || 2000;
-    var rows = days.map(function (d) { var day = getDay(u.id, d); return { d: d, a: FC.assess(u, day, isFinal(d)) }; });
+    var rows = days.map(function (d) { var day = getDay(u.id, d); return { d: d, a: FC.assess(u, day, isFinal(d), d) }; });
     var max = Math.max(goal * 1.25, Math.max.apply(null, rows.map(function (r) { return r.a.eaten; })));
     var Y = function (v) { return T + (1 - v / max) * (H - T - B); };
     var h = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Calories eaten each day against goal">';
@@ -414,7 +414,7 @@
     users().forEach(function (u) {
       h += "<tr><td>" + esc(u.name) + "</td>" + days.map(function (d) {
         if (d > t) return '<td><span class="dot" style="opacity:.35"></span></td>';
-        var day = getDay(u.id, d), a = FC.assess(u, day, isFinal(d));
+        var day = getDay(u.id, d), a = FC.assess(u, day, isFinal(d), d);
         var ex = day && day.ex && day.ex.length;
         return '<td><span class="dot ' + a.state + (ex ? " ex" : "") + '" title="' + esc(shortDate(d) + ": " + a.msg) + '"></span></td>';
       }).join("") + "</tr>";
@@ -438,12 +438,12 @@
   function renderProfile(id, fromSync) {
     if (id === "settings") return renderSettings(fromSync);
     var u = user(id); if (!u) return closeSheet();
-    var t = today(), day = getDay(u.id, t) || {}, a = FC.assess(u, day, evening()), w = FC.weightStats(u), ft = FC.foodTotals(day);
+    var t = today(), day = getDay(u.id, t) || {}, a = FC.assess(u, day, evening(), t), w = FC.weightStats(u), ft = FC.foodTotals(day);
     var wk = FC.weekPoints(u, getDay, t, evening()), st = FC.streak(u, getDay, t, evening());
     var bmi = FC.bmi(w.current, +u.heightCm);
     var k = kudosFor(u.id, t), mine = k.some(function (x) { return x.from === S.me; });
     var days14 = []; for (var i = 13; i >= 0; i--) days14.push(FC.addDays(t, -i));
-    var h = '<div class="grab"></div><div class="phead">' + avatar(u, true) + "<div><h2>" + esc(u.name) + '</h2><div class="tag">' + STATUS[u.status || "maintain"] + " · goal " + fmt(u.goalKcal) + ' cal</div></div><button class="x" data-act="close" aria-label="Close">×</button></div>';
+    var h = '<div class="grab"></div><div class="phead">' + avatar(u, true) + "<div><h2>" + esc(u.name) + '</h2><div class="tag">' + STATUS[u.status || "maintain"] + " · goal " + fmt(FC.goalFor(u, t)) + " cal" + (FC.goalFor(u, t) !== +u.goalKcal ? " today" : "") + '</div></div><button class="x" data-act="close" aria-label="Close">×</button></div>';
     h += '<div class="card"><h2>Today' + (u.id !== S.me ? '<button class="kudo' + (mine ? " on" : "") + '" data-act="kudos" data-id="' + u.id + '">' + ICON.hand + "High five" + (k.length ? " · " + k.length : "") + "</button>" : "") + "</h2>"
       + '<div class="summary">' + ring(a, 92) + '<div class="big"><span class="lbl">Eaten</span><span class="eat num">' + fmt(a.eaten) + '<span class="unit">cal</span></span><span class="lbl">Burned</span><span class="brn num">' + fmt(a.burned) + '<span class="unit">cal</span></span></div></div>'
       + '<div class="status ' + a.state + '">' + esc(a.msg) + (a.logged ? " · net " + fmt(a.net) + " of " + fmt(a.goal) : "") + "</div>"
@@ -498,14 +498,14 @@
   // Weekly running average: completed days this week (Mon to yesterday, plus today after 8pm), days with food logged
   function weekAvg(u) {
     var t = today(), wd = new Date(t + "T12:00:00").getDay(), mon = FC.addDays(t, -((wd + 6) % 7));
-    var eat = 0, net = 0, n = 0;
+    var eat = 0, net = 0, n = 0, gs = 0;
     for (var d = mon; d <= t; d = FC.addDays(d, 1)) {
       if (d === t && !evening()) break;
       var day = getDay(u.id, d), k = FC.foodTotals(day).kcal; if (!k) continue;
-      eat += k; net += k - FC.burned(day); n++;
+      eat += k; net += k - FC.burned(day); gs += FC.goalFor(u, d); n++;
     }
     if (!n) return null;
-    var e = Math.round(eat / n), nt = Math.round(net / n), g = +u.goalKcal || 0, st = u.status || "maintain";
+    var e = Math.round(eat / n), nt = Math.round(net / n), g = u.goalKcal ? Math.round(gs / n) : 0, st = u.status || "maintain";
     var ok = !g ? null : st === "cut" ? nt <= g : st === "bulk" ? nt >= g : Math.abs(nt - g) <= g * 0.1;
     return { eat: e, net: nt, n: n, goal: g, ok: ok };
   }
@@ -859,11 +859,12 @@
     if (fromSync && el.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return; // don't wipe typing
     var u = me(); if (!u) { el.innerHTML = ""; return; }
     var d = S.date, t = today(), day = getDay(u.id, d) || { food: [], ex: [] };
-    var a = FC.assess(u, day, isFinal(d)), ft = FC.foodTotals(day), w = FC.weightStats(u);
+    var a = FC.assess(u, day, isFinal(d), d), ft = FC.foodTotals(day), w = FC.weightStats(u);
     var h = '<div class="datebar"><button class="icon" data-act="day" data-v="-1" aria-label="Previous day">' + ICON.left + "</button><b>" + esc(dayLabel(d)) + '</b><button class="icon" data-act="day" data-v="1" aria-label="Next day"' + (d >= t ? " disabled" : "") + ">" + ICON.right + "</button></div>";
 
     // Summary: eaten on top, burned underneath
     h += summaryCard(u, a, ft);
+    h += wkCard(u, d);
     if (0) h += '<div class="card"><div class="summary">' + ring(a, 104) + '<div class="big"><span class="lbl">Calories eaten</span><span class="eat num">' + fmt(a.eaten) + '<span class="unit">/ ' + fmt(a.goal) + '</span></span><span class="lbl" style="margin-top:6px">Burned exercising</span><span class="brn num">' + fmt(a.burned) + '<span class="unit">cal</span></span></div></div>'
       + '<div class="status ' + a.state + '">' + esc(a.msg) + (a.logged ? " · net " + fmt(a.net) : "") + "</div>" + macroTiles(u, ft) + "</div>";
 
@@ -940,6 +941,38 @@
     return h + "</div>";
   }
 
+  /* ---------- Weekend calories ---------- */
+  var WKD = [[5, "Fri"], [6, "Sat"], [0, "Sun"]];
+  function dayNames(list) { var n = WKD.filter(function (x) { return list.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }); return n.length > 1 ? n.slice(0, -1).join(", ") + " and " + n[n.length - 1] : n[0] || ""; }
+  function wkPlanText(u, list) {
+    var e = FC.wkExtra(u), n = list.length; if (!n) return "No high days picked, so every day uses your normal goal.";
+    var cut = Math.round(e * n / (7 - n)), g = +u.goalKcal || 2000;
+    return dayNames(list) + ": " + fmt(g + e) + " cal (+" + fmt(e) + "). Other days: " + fmt(g - cut) + " cal (" + fmt(cut) + " less). The week stays at " + fmt(g * 7) + ".";
+  }
+  function wkSettings(u) {
+    var w = u.wknd || {}, on = !!w.on, days = w.days || [6, 0];
+    var h = '<button class="row sharerow fwtog" data-act="wkon" role="switch" aria-checked="' + on + '"><div class="t"><b>Weekend calories</b><small>' + (on ? "On: higher on " + (dayNames(days) || "no days yet") : "Off") + '</small></div><span class="tog' + (on ? " on" : "") + '"><i></i></span></button>';
+    if (!on) return h;
+    return h + '<div class="wkset"><div class="chips">' + WKD.map(function (x) { return '<button class="chip' + (days.indexOf(x[0]) >= 0 ? " on" : "") + '" data-act="wkusual" data-v="' + x[0] + '">' + x[1] + "</button>"; }).join("") + "</div>"
+      + '<label class="f">Extra per high day<input id="gWk" inputmode="numeric" value="' + esc(dv("gWk", FC.wkExtra(u))) + '"></label></div>'
+      + '<p class="hint">' + esc(wkPlanText(u, days)) + "</p>"
+      + tip("wknd", "Your usual high days. From Friday, the Me page lets you change this weekend's days if plans change. The extra comes off the other days of the same Monday to Sunday week, so your weekly total doesn't change. Choose 100 to 1,000 extra per high day.");
+  }
+  // On the Me page: Fri to Sun lets you pick this weekend's days; Mon to Thu shows why the goal is lower
+  function wkCard(u, d) {
+    var w = u.wknd; if (!w || !w.on || d !== today()) return "";
+    var dow = new Date(d + "T12:00:00").getDay(), hi = FC.highDays(u, d), base = +u.goalKcal || 2000, g = FC.goalFor(u, d);
+    if (WKD.every(function (x) { return x[0] !== dow; })) {
+      return hi.length ? '<div class="wkhint">' + ICON.cal + "<span>Weekend plan: today's goal is " + fmt(g) + " (" + fmt(base - g) + " less) so " + esc(dayNames(hi)) + " can be +" + fmt(FC.wkExtra(u)) + ".</span></div>" : "";
+    }
+    var order = [5, 6, 0], pos = order.indexOf(dow);
+    var h = '<div class="card">' + head("cal", "This weekend", g !== base ? "today " + fmt(g) + " cal" : "", "wknd2") + '<div class="chips wkchips">' + WKD.map(function (x, i) {
+      var past = i < pos;
+      return '<button class="chip' + (hi.indexOf(x[0]) >= 0 ? " on" : "") + '" data-act="wkday" data-v="' + x[0] + '"' + (past ? " disabled" : "") + ">" + x[1] + (hi.indexOf(x[0]) >= 0 ? " +" + fmt(FC.wkExtra(u)) : "") + "</button>";
+    }).join("") + "</div>";
+    return h + '<p class="hint">' + esc(wkPlanText(u, hi)) + "</p>" + tip("wknd2", "Tap a day to make it a high day this weekend or not. Days already gone are locked. Changing it also adjusts the earlier days this week, so the weekly total stays the same and those days may change between on and off track. Your usual days are in Settings > Goals.") + "</div>";
+  }
+
   /* ---------- Settings (opens as a sheet from the gear) ---------- */
   function sharingCard(u) {
     var others = S.cache.users.filter(function (x) { return x.id !== u.id; }), hide = u.hide || [];
@@ -961,6 +994,7 @@
     h += '<div class="card">' + head("target", "Goals", "", "goals") + '<div class="stack"><div class="seg">' + ["cut", "maintain", "bulk"].map(function (s) { return '<button class="' + (st === s ? "on" : "") + '" data-act="gstatus" data-v="' + s + '">' + STATUS[s] + "</button>"; }).join("") + "</div>"
       + '<div class="g2"><label class="f">Water goal (ml a day)<input id="gWater" inputmode="numeric" value="' + esc(dv("gWater", u.waterGoal || 2000)) + '"></label>'
       + '<button class="row sharerow fwtog" data-act="foodwater" role="switch" aria-checked="' + (u.foodWater !== false) + '"><div class="t"><b>Water from food</b><small>' + (u.foodWater !== false ? "Counted" : "Not counted") + '</small></div><span class="tog' + (u.foodWater !== false ? " on" : "") + '"><i></i></span></button></div>'
+      + wkSettings(u)
       + '<div class="g3"><label class="f">Daily cal goal<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
  + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
       + '<button class="btn pri wide" data-act="savegoals">Save goals</button></div></div>';
@@ -1143,6 +1177,17 @@
       changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, w: waterFrom(g, r.p, r.c, r.f), src: "barcode", code: p.code }); });
       S.scan = null; delete S.draft.sG; renderMe();
     },
+    wkon: function () { changeMe(function (u) { var w = u.wknd = u.wknd || {}; w.on = !w.on; if (!w.days) w.days = [6, 0]; if (!w.extra) w.extra = 400; }); },
+    wkusual: function (b) { var v = +b.dataset.v; changeMe(function (u) { var w = u.wknd = u.wknd || { on: true, extra: 400 }, l = (w.days || [6, 0]).slice(), i = l.indexOf(v); if (i >= 0) l.splice(i, 1); else l.push(v); w.days = l; }); },
+    wkday: function (b) {
+      var v = +b.dataset.v, t = today(), ws = FC.weekStart(t);
+      changeMe(function (u) {
+        var w = u.wknd; if (!w) return;
+        var l = FC.highDays(u, t).slice(), i = l.indexOf(v); if (i >= 0) l.splice(i, 1); else l.push(v);
+        w.over = w.over || {}; w.over[ws] = l;
+        Object.keys(w.over).forEach(function (k) { if (k < FC.addDays(ws, -28)) delete w.over[k]; }); // keep about a month
+      });
+    },
     foodwater: function () { changeMe(function (u) { u.foodWater = u.foodWater === false; }); },
     photo: function (b) { var el = document.getElementById(b.dataset.v === "cam" ? "mPhoto" : "mPhotoLib"); if (el) el.click(); },
     water: function (b) { var cur = +((getDay(S.me, S.date) || {}).water) || 0; setWater(cur + +b.dataset.v); },
@@ -1253,8 +1298,9 @@
       var k = Math.round(num("gKcal")); if (k < 800 || k > 8000) return toast("Goal should be between 800 and 8,000 cal");
       var st = dv("gStatus", me().status), p = Math.round(num("gP")), t = num("gT");
       var wg = Math.round(num("gWater"));
-      changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; if (wg >= 500 && wg <= 8000) u.waterGoal = wg; });
-      clearDraft(["gStatus", "gKcal", "gP", "gT", "gWater"]); toast("Goals saved"); render();
+      var wk = Math.round(num("gWk"));
+      changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; if (wg >= 500 && wg <= 8000) u.waterGoal = wg; if (u.wknd && wk) u.wknd.extra = Math.max(100, Math.min(1000, wk)); });
+      clearDraft(["gStatus", "gKcal", "gP", "gT", "gWater", "gWk"]); toast("Goals saved"); render();
     },
     colour: function (b) { S.draft.pC = b.dataset.v; render(); },
     saveprofile: function () {
@@ -1338,6 +1384,7 @@
       shrinkPhoto(f).then(function (d) { S.mealImg = d; S.photoBusy = false; inp.value = ""; renderMe(); }, function (er) { S.photoBusy = false; inp.value = ""; renderMe(); toast(er.message); });
       return;
     }
+    if (e.target.id === "gWk") { var wv = Math.round(+e.target.value || 0); if (wv) { changeMe(function (u) { if (u.wknd) u.wknd.extra = Math.max(100, Math.min(1000, wv)); }); delete S.draft.gWk; } return; }
     if (e.target.dataset && e.target.dataset.act === "diaryauto") { lsSet(LS.diary, e.target.checked ? "1" : ""); if (e.target.checked) autoDiary(); }
     else if (e.target.tagName === "SELECT" && e.target.id) S.draft[e.target.id] = e.target.value;
   });
