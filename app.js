@@ -945,32 +945,30 @@
   var WKD = [[5, "Fri"], [6, "Sat"], [0, "Sun"]];
   function dayNames(list) { var n = WKD.filter(function (x) { return list.indexOf(x[0]) >= 0; }).map(function (x) { return x[1]; }); return n.length > 1 ? n.slice(0, -1).join(", ") + " and " + n[n.length - 1] : n[0] || ""; }
   function wkPlanText(u, list) {
-    var e = FC.wkExtra(u), n = list.length; if (!n) return "No high days picked, so every day uses your normal goal.";
-    var cut = Math.round(e * n / (7 - n)), g = +u.goalKcal || 2000;
-    return dayNames(list) + ": " + fmt(g + e) + " cal (+" + fmt(e) + "). Other days: " + fmt(g - cut) + " cal (" + fmt(cut) + " less). The week stays at " + fmt(g * 7) + ".";
+    if (!list.length) return "No weekend days picked, so every day uses your daily goal.";
+    var g = +u.goalKcal || 2000, wg = FC.wkGoal(u), n = list.length;
+    return dayNames(list) + ": " + fmt(wg) + " cal. Other days: " + fmt(g) + " cal. Week total: " + fmt(wg * n + g * (7 - n)) + ".";
   }
   function wkSettings(u) {
     var w = u.wknd || {}, on = !!w.on, days = w.days || [6, 0];
-    var h = '<button class="row sharerow fwtog" data-act="wkon" role="switch" aria-checked="' + on + '"><div class="t"><b>Weekend calories</b><small>' + (on ? "On: higher on " + (dayNames(days) || "no days yet") : "Off") + '</small></div><span class="tog' + (on ? " on" : "") + '"><i></i></span></button>';
+    var h = '<button class="row sharerow fwtog" data-act="wkon" role="switch" aria-checked="' + on + '"><div class="t"><b>Weekend calories</b><small>' + (on ? "On: " + (dayNames(days) || "no days picked yet") : "Off") + '</small></div><span class="tog' + (on ? " on" : "") + '"><i></i></span></button>';
     if (!on) return h;
     return h + '<div class="wkset"><div class="chips">' + WKD.map(function (x) { return '<button class="chip' + (days.indexOf(x[0]) >= 0 ? " on" : "") + '" data-act="wkusual" data-v="' + x[0] + '">' + x[1] + "</button>"; }).join("") + "</div>"
-      + '<label class="f">Extra per high day<input id="gWk" inputmode="numeric" value="' + esc(dv("gWk", FC.wkExtra(u))) + '"></label></div>'
+      + '<label class="f">Weekend calories<input id="gWkK" inputmode="numeric" value="' + esc(dv("gWkK", FC.wkGoal(u))) + '"></label></div>'
       + '<p class="hint">' + esc(wkPlanText(u, days)) + "</p>"
-      + tip("wknd", "Your usual high days. From Friday, the Me page lets you change this weekend's days if plans change. The extra comes off the other days of the same Monday to Sunday week, so your weekly total doesn't change. Choose 100 to 1,000 extra per high day.");
+      + tip("wknd", "The days ticked use your weekend calories, every other day uses your daily calories below. From Friday, the Me page lets you change this weekend's days if plans change.");
   }
   // On the Me page: Fri to Sun lets you pick this weekend's days; Mon to Thu shows why the goal is lower
   function wkCard(u, d) {
     var w = u.wknd; if (!w || !w.on || d !== today()) return "";
     var dow = new Date(d + "T12:00:00").getDay(), hi = FC.highDays(u, d), base = +u.goalKcal || 2000, g = FC.goalFor(u, d);
-    if (WKD.every(function (x) { return x[0] !== dow; })) {
-      return hi.length ? '<div class="wkhint">' + ICON.cal + "<span>Weekend plan: today's goal is " + fmt(g) + " (" + fmt(base - g) + " less) so " + esc(dayNames(hi)) + " can be +" + fmt(FC.wkExtra(u)) + ".</span></div>" : "";
-    }
+    if (WKD.every(function (x) { return x[0] !== dow; })) return "";
     var order = [5, 6, 0], pos = order.indexOf(dow);
     var h = '<div class="card">' + head("cal", "This weekend", g !== base ? "today " + fmt(g) + " cal" : "", "wknd2") + '<div class="chips wkchips">' + WKD.map(function (x, i) {
       var past = i < pos;
-      return '<button class="chip' + (hi.indexOf(x[0]) >= 0 ? " on" : "") + '" data-act="wkday" data-v="' + x[0] + '"' + (past ? " disabled" : "") + ">" + x[1] + (hi.indexOf(x[0]) >= 0 ? " +" + fmt(FC.wkExtra(u)) : "") + "</button>";
+      return '<button class="chip' + (hi.indexOf(x[0]) >= 0 ? " on" : "") + '" data-act="wkday" data-v="' + x[0] + '"' + (past ? " disabled" : "") + ">" + x[1] + "</button>";
     }).join("") + "</div>";
-    return h + '<p class="hint">' + esc(wkPlanText(u, hi)) + "</p>" + tip("wknd2", "Tap a day to make it a high day this weekend or not. Days already gone are locked. Changing it also adjusts the earlier days this week, so the weekly total stays the same and those days may change between on and off track. Your usual days are in Settings > Goals.") + "</div>";
+    return h + '<p class="hint">' + esc(wkPlanText(u, hi)) + "</p>" + tip("wknd2", "Tap a day to switch it between your weekend and daily calories, for this weekend only. Days already gone are locked. Your usual days and both goals are in Settings > Goals.") + "</div>";
   }
 
   /* ---------- Settings (opens as a sheet from the gear) ---------- */
@@ -995,7 +993,7 @@
       + '<div class="g2"><label class="f">Water goal (ml a day)<input id="gWater" inputmode="numeric" value="' + esc(dv("gWater", u.waterGoal || 2000)) + '"></label>'
       + '<button class="row sharerow fwtog" data-act="foodwater" role="switch" aria-checked="' + (u.foodWater !== false) + '"><div class="t"><b>Water from food</b><small>' + (u.foodWater !== false ? "Counted" : "Not counted") + '</small></div><span class="tog' + (u.foodWater !== false ? " on" : "") + '"><i></i></span></button></div>'
       + wkSettings(u)
-      + '<div class="g3"><label class="f">Daily cal goal<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
+      + '<div class="g3"><label class="f">' + (u.wknd && u.wknd.on ? "Daily calories" : "Daily cal goal") + '<input id="gKcal" inputmode="numeric" value="' + esc(dv("gKcal", u.goalKcal || "")) + '"></label><label class="f">Protein g<input id="gP" inputmode="numeric" value="' + esc(dv("gP", u.proteinGoal || "")) + '"></label><label class="f">Target kg<input id="gT" inputmode="decimal" value="' + esc(dv("gT", u.targetWeight || "")) + '"></label></div>'
  + tip("goals", goalHint(st)) + '<p class="hint">Suggested for you: <b>' + fmt(FC.suggestGoal(Object.assign({}, u, { status: st }), w.current)) + ' cal</b> <button class="btn ghost" style="padding:2px 10px" data-act="suggest">Use</button></p>'
       + '<button class="btn pri wide" data-act="savegoals">Save goals</button></div></div>';
 
@@ -1177,8 +1175,8 @@
       changeDay(S.date, function (d) { d.food.push({ id: uid(), name: p.name + " (" + fmt(g) + u + ")", p: r.p, c: r.c, f: r.f, kcal: r.kcal, w: waterFrom(g, r.p, r.c, r.f), src: "barcode", code: p.code }); });
       S.scan = null; delete S.draft.sG; renderMe();
     },
-    wkon: function () { changeMe(function (u) { var w = u.wknd = u.wknd || {}; w.on = !w.on; if (!w.days) w.days = [6, 0]; if (!w.extra) w.extra = 400; }); },
-    wkusual: function (b) { var v = +b.dataset.v; changeMe(function (u) { var w = u.wknd = u.wknd || { on: true, extra: 400 }, l = (w.days || [6, 0]).slice(), i = l.indexOf(v); if (i >= 0) l.splice(i, 1); else l.push(v); w.days = l; }); },
+    wkon: function () { changeMe(function (u) { var w = u.wknd = u.wknd || {}; w.on = !w.on; if (!w.days) w.days = [6, 0]; if (!w.kcal) w.kcal = FC.wkGoal(u); delete w.extra; }); },
+    wkusual: function (b) { var v = +b.dataset.v; changeMe(function (u) { var w = u.wknd = u.wknd || { on: true }, l = (w.days || [6, 0]).slice(), i = l.indexOf(v); if (i >= 0) l.splice(i, 1); else l.push(v); w.days = l; }); },
     wkday: function (b) {
       var v = +b.dataset.v, t = today(), ws = FC.weekStart(t);
       changeMe(function (u) {
@@ -1298,9 +1296,10 @@
       var k = Math.round(num("gKcal")); if (k < 800 || k > 8000) return toast("Goal should be between 800 and 8,000 cal");
       var st = dv("gStatus", me().status), p = Math.round(num("gP")), t = num("gT");
       var wg = Math.round(num("gWater"));
-      var wk = Math.round(num("gWk"));
-      changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; if (wg >= 500 && wg <= 8000) u.waterGoal = wg; if (u.wknd && wk) u.wknd.extra = Math.max(100, Math.min(1000, wk)); });
-      clearDraft(["gStatus", "gKcal", "gP", "gT", "gWater", "gWk"]); toast("Goals saved"); render();
+      var wk = Math.round(num("gWkK"));
+      if (document.getElementById("gWkK") && (wk < 800 || wk > 8000)) return toast("Weekend calories should be between 800 and 8,000");
+      changeMe(function (u) { u.status = st; u.goalKcal = k; u.proteinGoal = p || 0; u.targetWeight = t || 0; if (wg >= 500 && wg <= 8000) u.waterGoal = wg; if (u.wknd && wk) { u.wknd.kcal = wk; delete u.wknd.extra; } });
+      clearDraft(["gStatus", "gKcal", "gP", "gT", "gWater", "gWkK"]); toast("Goals saved"); render();
     },
     colour: function (b) { S.draft.pC = b.dataset.v; render(); },
     saveprofile: function () {
@@ -1384,7 +1383,7 @@
       shrinkPhoto(f).then(function (d) { S.mealImg = d; S.photoBusy = false; inp.value = ""; renderMe(); }, function (er) { S.photoBusy = false; inp.value = ""; renderMe(); toast(er.message); });
       return;
     }
-    if (e.target.id === "gWk") { var wv = Math.round(+e.target.value || 0); if (wv) { changeMe(function (u) { if (u.wknd) u.wknd.extra = Math.max(100, Math.min(1000, wv)); }); delete S.draft.gWk; } return; }
+    if (e.target.id === "gWkK") { var wv = Math.round(+e.target.value || 0); if (wv >= 800 && wv <= 8000) { changeMe(function (u) { if (u.wknd) { u.wknd.kcal = wv; delete u.wknd.extra; } }); delete S.draft.gWkK; } else toast("Weekend calories should be between 800 and 8,000"); return; }
     if (e.target.dataset && e.target.dataset.act === "diaryauto") { lsSet(LS.diary, e.target.checked ? "1" : ""); if (e.target.checked) autoDiary(); }
     else if (e.target.tagName === "SELECT" && e.target.id) S.draft[e.target.id] = e.target.value;
   });

@@ -140,21 +140,23 @@
    *  bulk:     on track once net >= goal (until evening an unfinished day just shows "to go")
    *  maintain: on track while net is within 10% of goal
    * final = the day is over (a past day, or after 8pm today). */
-  /* Weekend calories (optional, Settings > Goals): chosen Fri/Sat/Sun get +extra, and the other days of that
-   * Mon-Sun week get the same total taken off, so the weekly total doesn't change.
-   * u.wknd = { on, days: usual high days (JS getDay: 5 Fri, 6 Sat, 0 Sun), extra, over: { weekStart: days } } */
+  /* Weekend calories (optional, Settings > Goals): chosen Fri/Sat/Sun use the weekend goal you type,
+   * every other day uses the daily goal. Nothing is moved between days.
+   * u.wknd = { on, days: usual high days (JS getDay: 5 Fri, 6 Sat, 0 Sun), kcal, over: { weekStart: days } } */
   var WKND = [5, 6, 0];
   function highDays(u, date) {
     var w = u && u.wknd; if (!w || !w.on || !date) return [];
     var o = (w.over || {})[weekStart(date)];
     return (o || w.days || []).filter(function (d) { return WKND.indexOf(d) >= 0; });
   }
-  function wkExtra(u) { return Math.max(100, Math.min(1000, Math.round(+(u && u.wknd && u.wknd.extra) || 400))); }
+  function wkGoal(u) {
+    var w = (u && u.wknd) || {}, base = +(u && u.goalKcal) || 2000;
+    return +w.kcal >= 800 ? Math.round(+w.kcal) : base + (Math.round(+w.extra) || 400); // older setting stored an amount extra
+  }
   function goalFor(u, date) {
     var base = +(u && u.goalKcal) || 2000, hi = highDays(u, date);
     if (!hi.length) return base;
-    var extra = wkExtra(u), dow = new Date(date + "T12:00:00").getDay();
-    return hi.indexOf(dow) >= 0 ? base + extra : base - Math.round(extra * hi.length / (7 - hi.length));
+    return hi.indexOf(new Date(date + "T12:00:00").getDay()) >= 0 ? wkGoal(u) : base;
   }
   function assess(u, day, final, date) {
     var goal = goalFor(u, date);
@@ -253,7 +255,7 @@
 
   var api = {
     age: age, bmi: bmi, rmr: rmr, exerciseCal: exerciseCal, walkMET: walkMET, runMET: runMET, bikeMET: bikeMET,
-    parseWorkout: parseWorkout, foodTotals: foodTotals, burned: burned, macroCal: macroCal, assess: assess, goalFor: goalFor, highDays: highDays, wkExtra: wkExtra,
+    parseWorkout: parseWorkout, foodTotals: foodTotals, burned: burned, macroCal: macroCal, assess: assess, goalFor: goalFor, highDays: highDays, wkGoal: wkGoal,
     weights: weights, weightStats: weightStats, addDays: addDays, isoDate: isoDate, weekStart: weekStart,
     streak: streak, weekPoints: weekPoints, suggestGoal: suggestGoal, round1: round1, fmt: fmt
   };
