@@ -19,7 +19,8 @@
     date: today(),
     draft: {},
     est: null,
-    claude: null,
+    claude: (function () { var v = lsGet("fitcrew.claude", ""); return v === "1" ? true : v === "0" ? false : null; })(), // last known, so the buttons show at once
+    acc: lsJSON("fitcrew.acc", null),
     syncing: false,
     err: "",
     lastSync: 0,
@@ -34,7 +35,7 @@
   function lsGet(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
   function lsSet(k, v) { try { if (v == null || v === "") localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
   function lsJSON(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v || d; } catch (e) { return d; } }
-  function persist() { lsSet(LS.cache, JSON.stringify(S.cache)); lsSet(LS.outbox, JSON.stringify(S.outbox)); }
+  function persist() { lsSet(LS.cache, JSON.stringify(S.cache)); lsSet(LS.outbox, JSON.stringify(S.outbox)); lsSet("fitcrew.acc", JSON.stringify(S.acc || null)); }
   function today() { return FC.isoDate(new Date()); }
   function evening() { return new Date().getHours() >= 20; }
   function isFinal(d) { return d < today() || (d === today() && evening()); }
@@ -194,7 +195,7 @@
         if (mu && document.visibilityState === "visible" && Date.now() - (+mu.seen || 0) > 15 * 60000) {
           var sx = clone(mu); sx.seen = Date.now(); upsertUser(sx); setTimeout(function () { queue({ action: "saveUser", user: sx }); }, 0); // quiet: no redraw while typing
         }
-        if (S.claude == null) call("ping").then(function (p) { S.claude = !!p.claude; renderMe(true); }).catch(function () {});
+        if (!S.pinged) { S.pinged = true; call("ping").then(function (p) { var c = !!p.claude; lsSet("fitcrew.claude", c ? "1" : "0"); if (c !== S.claude) { S.claude = c; renderMe(true); } }).catch(function () { S.pinged = false; }); }
       })
       .catch(function (e) {
         S.err = e.message || "Offline";
@@ -387,12 +388,22 @@
   }
 
   /* ---------- Crew page ---------- */
+  // Summer Christmas banner on the Crew page (theme switches off by itself on 6 Jan 2027)
+  function xmasBanner() {
+    if (!document.documentElement.classList.contains("xmas")) return "";
+    var t = today(), jan = t.slice(5, 7) === "01", y = +t.slice(0, 4) - (jan ? 1 : 0);
+    var days = Math.round((new Date(y + "-12-25T12:00:00") - new Date(t + "T12:00:00")) / 864e5);
+    var top = days > 1 ? days + " sleeps to Christmas" : days === 1 ? "Christmas Eve" : days === 0 ? "Meri Kirihimete" : jan ? "Happy New Year" : "Happy holidays";
+    var sub = days > 0 ? "Keep the crew going through the silly season." : days === 0 ? "Merry Christmas from the crew. Enjoy the day." : "Back on it, crew. A new year of PBs.";
+    var sun = document.querySelector(".brand .xsun");
+    return '<div class="xbanner">' + (sun ? sun.outerHTML : "") + "<div><b>" + esc(top) + "</b><span>" + esc(sub) + "</span></div></div>";
+  }
   function renderCrew() {
     var el = $("#crew"); if (!el) return;
     var rows = sortRows(scoreRows()), t = today();
     if (!rows.length) { el.innerHTML = '<p class="empty">No one here yet.</p>'; return; }
     var good = rows.filter(function (r) { return r.a.state === "good"; }).length;
-    var h = '<div class="sect"><h2>Leaderboard</h2><span>' + good + " of " + rows.length + " on track today</span></div>";
+    var h = xmasBanner() + '<div class="sect"><h2>Leaderboard</h2><span>' + good + " of " + rows.length + " on track today</span></div>";
     h += '<div class="chips" role="tablist">' + [["week", "Week points"], ["streak", "Streak"], ["weight", "Weight progress"]].map(function (b) {
       return '<button class="chip' + (S.board === b[0] ? " on" : "") + '" data-act="board" data-v="' + b[0] + '">' + b[1] + "</button>";
     }).join("") + "</div>";
@@ -476,8 +487,33 @@
     var pg = +u.proteinGoal || 0;
     return '<div class="macros"><div class="macro"><b>' + fmt(ft.p) + "g</b><span>Protein" + (pg ? " / " + pg + "g" : "") + "</span>" + (pg ? '<div class="bar"><i style="width:' + Math.min(100, ft.p / pg * 100) + '%"></i></div>' : "") + '</div><div class="macro"><b>' + fmt(ft.c) + 'g</b><span>Carbs</span></div><div class="macro"><b>' + fmt(ft.f) + "g</b><span>Fat</span></div></div>";
   }
-  function openSheet(id) { S.sheet = id; renderProfile(id); $("#sheet").classList.add("open"); }
-  function closeSheet() { S.sheet = null; $("#sheet").classList.remove("open"); }
+  function openSheet(id) { S.sheet = id; renderProfile(id); $("#sheet").classList.add("open"); syncHistory(); }
+  function closeSheet() { S.sheet = null; $("#sheet").classList.remove("open"); syncHistory(); }
+
+  /* ---------- Phone back button ----------
+   * While anything is open (a sheet, a Train screen, an edit, another tab) the app keeps one extra history
+   * entry, so the back button closes that thing instead of leaving the app. Crew tab with nothing open = root. */
+  var curTab = 0;
+  function atRoot() {
+    return !S.sheet && !document.getElementById("zoom") && curTab === 0;
+  }
+  function syncHistory() {
+    var has = !!(history.state && history.state.fc);
+    if (!atRoot() && !has) history.pushState({ fc: 1 }, "");
+    else if (atRoot() && has) { S.ignorePop = true; history.back(); }
+  }
+  function goBack() {
+    var z = document.getElementById("zoom"); if (z) { z.remove(); return; }
+    if (S.sheet) { closeSheet(); return; }
+    if (curTab === 2 && window.FCTrain && FCTrain.goBack()) return;
+    if (curTab === 1 && (S.edit || S.est)) { S.edit = null; S.est = null; renderMe(); return; }
+    if (curTab !== 0) { curTab = 0; goTab(0); }
+  }
+  window.addEventListener("popstate", function () {
+    if (S.ignorePop) { S.ignorePop = false; return; }
+    goBack();
+    setTimeout(syncHistory, 0);
+  });
 
   /* ---------- Shared look: card headings with an icon and an optional (i) for the explanations ---------- */
   function head(ic, title, small, key) {
@@ -1482,6 +1518,7 @@
     $("#pill").style.transform = "translateX(" + (f * 100) + "%) translateX(" + (f * 4) + "px)";
     var on = Math.round(f);
     document.querySelectorAll(".tabs button").forEach(function (b) { b.classList.toggle("on", +b.dataset.tab === on); });
+    clearTimeout(S.tabT); S.tabT = setTimeout(function () { if (Math.abs(pager.scrollLeft / Math.max(1, pager.clientWidth) - on) < 0.02) { curTab = on; syncHistory(); } }, 150);
   }, { passive: true });
 
   /* ---------- Feedback ---------- */
@@ -1500,7 +1537,7 @@
     cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; ctx.scale(dpr, dpr);
     var ox = innerWidth / 2, oy = innerHeight * 0.35;
     if (fromEl && fromEl.getBoundingClientRect) { var r = fromEl.getBoundingClientRect(); ox = r.left + r.width / 2; oy = r.top + r.height / 2; }
-    var cols = ["#c4f135", "#dcff6e", "#34d6a4", "#ffb547", "#f3f6f2", "#6aa9e9"], ps = [];
+    var cols = document.documentElement.classList.contains("xmas") ? ["#ff6f5e", "#2fe0cf", "#f3d59c", "#ffffff", "#ffc94d", "#7be38f"] : ["#c4f135", "#dcff6e", "#34d6a4", "#ffb547", "#f3f6f2", "#6aa9e9"], ps = [];
     for (var i = 0; i < (fromEl ? 40 : 110); i++) {
       var ang = Math.random() * Math.PI * 2, sp = 3 + Math.random() * (fromEl ? 5 : 9);
       ps.push({ x: ox, y: oy, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 4, s: 4 + Math.random() * 5, c: cols[i % cols.length], r: Math.random() * 6, vr: (Math.random() - .5) * .4 });
@@ -1518,7 +1555,7 @@
 
   /* ---------- Workout tracker (train.js) ---------- */
   if (window.FCTrain) FCTrain.init({ S: S, FC: FC, me: me, user: user, getDay: getDay, changeDay: changeDay, changeMe: changeMe, toast: toast, celebrate: celebrate,
-    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip, checkBadges: function () { setTimeout(checkBadges, 50); }, backfillStats: backfillStats, exListHtml: exListHtml, exLogHtml: exLogHtml });
+    esc: esc, fmt: fmt, today: today, dayLabel: dayLabel, uid: uid, bodyOf: bodyOf, ICON: ICON, head: head, tip: tip, checkBadges: function () { setTimeout(checkBadges, 50); }, backfillStats: backfillStats, exListHtml: exListHtml, exLogHtml: exLogHtml, syncHistory: function () { syncHistory(); } });
 
   /* ---------- Start ---------- */
   (function readHash() {

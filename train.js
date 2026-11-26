@@ -287,6 +287,15 @@
     var h = T.active ? activeView(u) : T.view === "edit" && T.draft ? editView(u) : T.view === "cardio" && T.cardio ? cardioView(u) : T.view === "rec" && T.rec ? recView(u) : homeView(u);
     el.innerHTML = h;
     renderPicker();
+    if (A.syncHistory) A.syncHistory();
+  }
+  // Phone back button on the Train tab: close the top thing that's open. False when there's nothing to close.
+  function goBack() {
+    if (T.picker) { T.picker = null; T.custom = null; render(); return true; }
+    if (T.active && T.finish) { T.finish = null; render(); return true; }
+    if (T.active && T.overview && T.active.exs.length) { T.overview = false; render(); return true; }
+    if (!T.active && T.view !== "home") { T.view = "home"; T.draft = null; T.cardio = null; T.logMode = null; T.rec = null; A.S.est = null; render(); return true; }
+    return false;
   }
 
   function homeView(u) {
@@ -1202,7 +1211,7 @@
     zoom: function (b) {
       var id = b.dataset.x, u = IMG + encodeURIComponent(id) + "/", z = document.createElement("div");
       z.id = "zoom"; z.innerHTML = '<div class="zbox"><img src="' + u + '0.jpg" alt="Start position"><img class="f2" src="' + u + '1.jpg" alt="End position"></div><p>' + esc(shortName(exInfo(id).n)) + "<br><small>Tap anywhere to close</small></p>";
-      z.addEventListener("click", function () { z.remove(); }); document.body.appendChild(z);
+      z.addEventListener("click", function () { z.remove(); if (A.syncHistory) A.syncHistory(); }); document.body.appendChild(z); if (A.syncHistory) A.syncHistory();
     },
     noteedit: function (b) { T.noteEdit = b.dataset.x; T.noteDraft = null; render(); setTimeout(function () { var t = $("#exNote"); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 30); },
     notecancel: function () { T.noteEdit = null; T.noteDraft = null; render(); },
@@ -1419,6 +1428,6 @@
     if (T.active) wake(true);
   }
 
-  window.FCTrain = { init: init, render: render, noEquipHtml: function (u) { return noEquipHtml(u); }, doneLog: function () { if (T.view === "cardio") { T.view = "home"; T.cardio = null; T.logMode = null; } }, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
+  window.FCTrain = { init: init, render: render, goBack: goBack, noEquipHtml: function (u) { return noEquipHtml(u); }, doneLog: function () { if (T.view === "cardio") { T.view = "home"; T.cardio = null; T.logMode = null; } }, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
     _test: { buildPlan: buildPlan, planKcal: planKcal, recSolve: recSolve, altFor: altFor, LEVELS: LEVELS, activeMinutes: activeMinutes, recovery: recovery, e1rm: e1rm, search: search, exInfo: exInfo, suggestion: suggestion, cardioMET: cardioMET, cardioKcal: cardioKcal } };
 })();
