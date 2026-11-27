@@ -312,7 +312,7 @@
     h += activityCard(u);
     h += '<div class="card">' + A.head("body", "Recovery", "", "rec") + recoveryCard(u) + "</div>";
     h += '<div class="card">' + A.head("list", "My workouts", routines.length ? String(routines.length) : "");
-    h += routines.length ? routines.map(function (r) { return routineRow(r, false); }).join("") : '<p class="empty">No workouts yet. Build one with exercises, sets, supersets and days.</p>';
+    h += routines.length ? sortedRoutines(routines).map(function (r) { return routineRow(r, false); }).join("") : '<p class="empty">No workouts yet. Build one with exercises, sets, supersets and days.</p>';
     h += '<div class="btns"><button class="btn pri" style="flex:1" data-tact="new">' + A.ICON.plus + "New workout</button>" + (todays.length ? '<button class="btn" data-tact="startblank">Empty workout</button>' : "") + "</div>"
       + "</div>";
     h += weekCard(u) + progressCard(u) + pbCard(u) + historyCard(u);
@@ -325,6 +325,10 @@
       + '<div class="datebar sm"><button class="icon" data-act="day" data-v="-1" aria-label="Previous day">' + TI.left + "</button><b>" + esc(A.dayLabel(d)) + '</b><button class="icon" data-act="day" data-v="1" aria-label="Next day"' + (d >= t ? " disabled" : "") + ">" + TI.right + "</button></div>"
       + A.exListHtml(u)
       + '<button class="btn pri wide" data-tact="lognew" style="margin-top:10px">' + A.ICON.plus + "Log activity</button></div>";
+  }
+  function sortedRoutines(list) {
+    var rank = function (r) { var ds = (r.days || []).map(function (d) { return ORDER.indexOf(d); }).filter(function (i) { return i >= 0; }); return ds.length ? Math.min.apply(null, ds) : 99; };
+    return list.slice().sort(function (a, b) { return rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)); });
   }
   function recBtn() { return '<button class="btn ghost sm recbtn" data-tact="rec">' + A.ICON.spark + "Recommend a workout</button>"; }
   function routineRow(r, big) {
@@ -867,7 +871,8 @@
     if (grp.length > 1) h += '<div class="ssnext">' + grp.map(function (i) { return '<span class="' + (i === k ? "on" : "") + '">' + esc(shortName(exInfo(w.exs[i].x).n)) + " " + doneCount(w.exs[i]) + "/" + setCount(w.exs[i]) + "</span>"; }).join('<i>→</i>') + "</div>";
     if (e.rg || e.drop) h += '<div class="ptgt">' + TI.target + (e.rg ? "Target " + e.rg[0] + "–" + e.rg[1] + (e.mode === "time" ? " s" : " reps") : "") + (e.drop ? (e.rg ? " · " : "") + "<b>last set is a drop set</b>" : "") + "</div>";
     if (e.drop && j === e.sets.length - 1) h += '<p class="hint dropnow">Drop set: after this set, lower the weight by about 25% and keep going until you can\'t, then log it.</p>';
-    if (!doneCount(e)) h += '<button class="lnk rswap" data-tact="lswap">Don\'t have this machine? Swap for a different exercise</button>';
+    if (!doneCount(e)) h += w.plan && w.plan.swap ? '<button class="lnk rswap" data-tact="lswap">Don\'t have this machine? Swap for a different exercise</button>'
+      : '<button class="lnk rswap" data-tact="pick" data-mode="swap">Change this exercise (this time only)</button>';
     h += noteBox(u, e.x);
     var timed = e.mode === "time";
     h += '<div class="modesw"><button class="' + (timed ? "" : "on") + '" data-tact="mode" data-v="reps">Reps</button><button class="' + (timed ? "on" : "") + '" data-tact="mode" data-v="time">Time</button></div>';
@@ -917,14 +922,34 @@
     g.gain.setValueAtTime(vol, audio.currentTime + t0 + d - 0.03); g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + t0 + d);
     o.connect(g); g.connect(audio.destination); o.start(audio.currentTime + t0); o.stop(audio.currentTime + t0 + d + 0.02);
   }
-  // 3, 2, 1 ticks, then a loud two-tone alarm repeated three times (as loud as your media volume allows)
-  function tick() { try { if (audio) tone(0, 880, 0.09, 0.35, "square"); } catch (e) {} if (navigator.vibrate) navigator.vibrate(40); }
-  function beep() {
-    if (navigator.vibrate) navigator.vibrate([400, 120, 400, 120, 600]);
+  /* Rest timer sound, chosen in Settings (saved on the profile as "sound"):
+   *  alarm  loud two-tone alarm repeated three times, with 3-2-1 ticks (the original)
+   *  chime  gentle rising three-note tune, soft ticks
+   *  sport  two short sharp beeps, medium ticks
+   *  silent no sound and no buzz */
+  var SOUNDS = [["alarm", "Alarm"], ["chime", "Chime"], ["sport", "Sport"], ["silent", "Silent"]];
+  function soundOf() { var s = (me() || {}).sound; return SOUNDS.some(function (x) { return x[0] === s; }) ? s : "alarm"; }
+  function tick(kind) {
+    kind = kind || soundOf(); if (kind === "silent") return;
+    try { if (audio) { if (kind === "chime") tone(0, 1046, 0.08, 0.12, "sine"); else if (kind === "sport") tone(0, 1200, 0.06, 0.25, "triangle"); else tone(0, 880, 0.09, 0.35, "square"); } } catch (e) {}
+    if (navigator.vibrate) navigator.vibrate(kind === "chime" ? 20 : 40);
+  }
+  function beep(kind) {
+    kind = kind || soundOf(); if (kind === "silent") return;
+    if (navigator.vibrate) navigator.vibrate(kind === "chime" ? [200, 100, 200] : kind === "sport" ? [250, 100, 250] : [400, 120, 400, 120, 600]);
     try { if (!audio) return; if (audio.state === "suspended") audio.resume();
-      for (var r = 0; r < 3; r++) for (var k = 0; k < 3; k++) { var t0 = r * 0.75 + k * 0.2; tone(t0, k % 2 ? 1320 : 990, 0.16, 0.9, "square"); tone(t0, k % 2 ? 660 : 495, 0.16, 0.4, "sawtooth"); }
+      if (kind === "chime") { [[0, 784], [0.18, 988], [0.36, 1175], [0.62, 1568]].forEach(function (n, i) { tone(n[0], n[1], i === 3 ? 0.7 : 0.32, 0.35, "sine"); tone(n[0], n[1] * 2, i === 3 ? 0.5 : 0.2, 0.06, "sine"); }); }
+      else if (kind === "sport") { [0, 0.28].forEach(function (t0) { tone(t0, 1760, 0.18, 0.6, "triangle"); tone(t0, 880, 0.18, 0.25, "square"); }); }
+      else for (var r = 0; r < 3; r++) for (var k = 0; k < 3; k++) { var t0 = r * 0.75 + k * 0.2; tone(t0, k % 2 ? 1320 : 990, 0.16, 0.9, "square"); tone(t0, k % 2 ? 660 : 495, 0.16, 0.4, "sawtooth"); }
     } catch (e) {}
   }
+  function soundHtml(u) {
+    var cur = soundOf();
+    return '<div class="card">' + A.head("watch", "Rest timer sound", "", "snd") + '<div class="seg seg4">' + SOUNDS.map(function (x) { return '<button class="' + (cur === x[0] ? "on" : "") + '" data-tact="sound" data-v="' + x[0] + '">' + x[1] + "</button>"; }).join("") + "</div>"
+      + '<button class="btn wide" data-tact="soundtest" style="margin-top:10px"' + (cur === "silent" ? " disabled" : "") + ">" + TI.clock + "Test the sound</button>"
+      + A.tip("snd", "Plays when your rest is over, with ticks for the last 3 seconds. Alarm is the loudest, Chime is gentle, Sport is two short beeps, Silent turns off the sound and the buzz. It's as loud as your phone's media volume.") + "</div>";
+  }
+
   // Keep the screen on during a workout where the phone allows it
   var lock = null;
   function wake(on) {
@@ -1145,6 +1170,12 @@
   }
   function addExercise(id) {
     var u = me();
+    if (T.picker.mode === "swap") { // this session only: the saved workout keeps its exercise
+      var w = T.active, old = w.exs[w.cur]; if (!old || doneCount(old)) { T.picker = null; return render(); }
+      var n = String(id).indexOf("cardio:") === 0 ? newCardio(id, 10) : newEx(u, id, old.sets.length || 3, old.g);
+      w.exs[w.cur] = n; T.sw = null; T.picker = null; saveActive();
+      A.toast("Changed to " + shortName(exInfo(id).n) + " for this workout"); render(); var p = $("#pTrain"); if (p) p.scrollTop = 0; return;
+    }
     if (T.picker.mode === "routine") T.draft.items.push(String(id).indexOf("cardio:") === 0 ? { x: id, min: 10, g: "" } : { x: id, sets: 3, g: "" });
     else { T.active.exs.push(newEx(u, id, 3, "")); T.active.cur = T.active.exs.length - 1; T.overview = false; saveActive(); }
     A.toast("Added " + shortName(exInfo(id).n));
@@ -1270,7 +1301,7 @@
     rcstart: function () {
       var R = T.rec, p = R.plan, L = LEVELS[p.lvl], nm = ($("#rcName") || {}).value || R.name || p.name;
       startWorkout({ id: R.saved || "", name: nm, items: p.items });
-      if (T.active) { T.active.plan = { eff: L.eff, met: L.met, lvl: p.lvl }; saveActive(); }
+      if (T.active) { T.active.plan = { eff: L.eff, met: L.met, lvl: p.lvl, swap: !R.saved }; saveActive(); render(); } // once saved it's one of your workouts: change-once instead
       T.rec = null;
     },
     rcsave: function () {
@@ -1287,6 +1318,8 @@
       w.exs[w.cur] = n; T.sw = null; saveActive(); render(); A.toast("Swapped to " + shortName(exInfo(alt).n));
     },
     noeqdel: function (b) { var id = b.dataset.x; A.changeMe(function (uu) { if (uu.priv && uu.priv.noEquip) uu.priv.noEquip = uu.priv.noEquip.filter(function (x) { return x !== id; }); }); },
+    sound: function (b) { var v = b.dataset.v; A.changeMe(function (uu) { uu.sound = v; }); unlockAudio(); setTimeout(function () { beep(v); }, 60); },
+    soundtest: function () { unlockAudio(); setTimeout(function () { beep(); }, 60); },
     lognew: function () { T.view = "cardio"; T.logMode = "cardio"; T.cardio = { parts: [newPart()], watch: "" }; A.S.edit = null; render(); var p = $("#pTrain"); if (p) p.scrollTop = 0; },
     lmode: function (b) { T.logMode = b.dataset.v; render(); },
     ivadd: function () { var ps = T.cardio.parts, l = ps[ps.length - 1]; ps.push(newPart(l.type, l.eff)); render(); },
@@ -1428,6 +1461,6 @@
     if (T.active) wake(true);
   }
 
-  window.FCTrain = { init: init, render: render, goBack: goBack, noEquipHtml: function (u) { return noEquipHtml(u); }, doneLog: function () { if (T.view === "cardio") { T.view = "home"; T.cardio = null; T.logMode = null; } }, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
+  window.FCTrain = { init: init, render: render, newWorkout: function () { if (T.active) return; ACT.new(); var p = $("#pTrain"); if (p) p.scrollTop = 0; }, soundHtml: function (u) { return soundHtml(u); }, goBack: goBack, noEquipHtml: function (u) { return noEquipHtml(u); }, doneLog: function () { if (T.view === "cardio") { T.view = "home"; T.cardio = null; T.logMode = null; } }, crewHtml: crewHtml, profileHtml: profileHtml, deleteWorkout: deleteWorkout, active: function () { return !!T.active; },
     _test: { buildPlan: buildPlan, planKcal: planKcal, recSolve: recSolve, altFor: altFor, LEVELS: LEVELS, activeMinutes: activeMinutes, recovery: recovery, e1rm: e1rm, search: search, exInfo: exInfo, suggestion: suggestion, cardioMET: cardioMET, cardioKcal: cardioKcal } };
 })();

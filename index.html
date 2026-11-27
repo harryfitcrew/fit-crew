@@ -659,6 +659,58 @@ html.xmas .xbanner{display:flex;align-items:center;gap:12px;position:relative;ov
 .xbanner .xsun{display:block;width:42px;height:42px}
 .xbanner::after{content:"";position:absolute;left:0;right:0;bottom:0;height:9px;opacity:.55;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='9'%3E%3Cpath d='M0 6 Q10 0 20 6 T40 6 V9 H0z' fill='%232fe0cf'/%3E%3C/svg%3E") repeat-x}
+/* Rest timer sound */
+.seg4{grid-template-columns:repeat(4,1fr)}
+/* Tutorial */
+#tut{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center;padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+@media (min-height:700px){#tut{align-items:center}}
+.tcard{width:100%;max-width:440px;max-height:92vh;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px 16px 14px;box-shadow:0 20px 60px rgba(0,0,0,.5);animation:tin .22s ease}
+@keyframes tin{from{transform:translateY(14px);opacity:0}}
+.thead{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.tstep{color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.tcard h2{font:800 26px/1.05 var(--hfont);text-transform:uppercase;letter-spacing:.02em;margin:10px 0 10px}
+.tcard .hic.big{display:inline-grid}
+.tbody{font-size:14.5px}
+.tbody p{margin:0 0 8px;color:var(--text)}
+.tbody ul,.tbody ol{margin:0;padding-left:20px}
+.tbody li{margin:5px 0}
+.tbody b{color:var(--accent)}
+.tnote{color:var(--muted)!important;font-size:13px;margin-top:8px!important}
+.tdots{display:flex;justify-content:center;gap:6px;margin:14px 0 12px}
+.tdots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.tdots i.on{background:var(--accent);width:18px;border-radius:4px}
+.tbtns{display:flex;gap:8px}
+.tbtns .btn{flex:1}
+.tmock{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 12px;display:flex;flex-direction:column;gap:7px;pointer-events:none;font-size:12.5px}
+.tm-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tm-btn,.tm-in,.tm-pill,.tm-chip{border:1px solid var(--line);background:var(--card2);border-radius:10px;padding:6px 10px;font-weight:600}
+.tm-btn.pri{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.tm-btn.wide,.tm-in.wide{flex:1;text-align:center}
+.tm-in{font-family:var(--hfont);font-size:15px}
+.tm-pill,.tm-chip{border-radius:999px}
+.tm-chip i{font-style:normal;color:var(--muted);margin-left:4px}
+.tm-arrow{color:var(--accent);font-weight:800}
+.tm-gear{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center}
+.tm-gear svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+.tm-tabs{display:flex;background:var(--card2);border-radius:999px;padding:3px}
+.tm-tabs span{flex:1;text-align:center;padding:6px 0;border-radius:999px;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase}
+.tm-tabs span.on{background:var(--accent);color:var(--accent-ink)}
+.tm-cap{margin:0;color:var(--muted);text-align:center}
+.tm-tile{display:flex;gap:10px;align-items:center;background:var(--card2);border-radius:12px;padding:8px 10px;border:1px solid rgba(var(--good-rgb),.5)}
+.tm-tile small{display:block;color:var(--muted)} .tm-tile em{font-style:normal;color:var(--good);font-weight:600}
+.tm-ring{width:34px;height:34px;border-radius:50%;border:5px solid var(--line);border-top-color:var(--good);border-right-color:var(--good);flex:none}
+.tm-list{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border-radius:10px;padding:7px 10px}
+.tm-list.ss{border-left:3px solid var(--accent)}
+.tmock b{font:600 12.5px/1.3 var(--sans);text-transform:none;letter-spacing:0}
+.tm-stp{color:var(--muted);font-weight:600}
+.tm-link{color:var(--accent-2);font-size:11.5px;font-weight:600}
+.tm-days{display:flex;gap:5px}
+.tm-days span{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--card2);font-weight:700;font-size:11px;color:var(--muted)}
+.tm-days span.on{background:var(--accent);color:var(--accent-ink)}
+.tm-chart{width:100%;height:40px}
+.tm-chart path{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-linecap:round}
+.tflash{animation:tflash 1.2s ease 2}
+@keyframes tflash{50%{box-shadow:0 0 0 3px var(--accent),0 0 24px rgba(var(--acc-rgb),.45)}}
 /* Timed exercises */
 .modesw{display:inline-flex;margin:12px auto 0;background:var(--surface);border-radius:999px;padding:3px;gap:2px;border:1px solid var(--line)}
 .live .modesw{display:flex;width:max-content}

@@ -209,6 +209,7 @@
       .then(function () {
         S.syncing = false;
         paintGear();
+        var tu = me(); if (tu && !tu.tut && !S.gate && S.tut == null && !S.tutAuto && S.pin !== undefined) { S.tutAuto = true; setTimeout(function () { if (!S.gate && S.tut == null && !document.querySelector("#gate.open")) tutOpen(0); }, 600); }
         autoDiary();
         render(true);
         checkBadges();
@@ -490,27 +491,80 @@
   function openSheet(id) { S.sheet = id; renderProfile(id); $("#sheet").classList.add("open"); syncHistory(); }
   function closeSheet() { S.sheet = null; $("#sheet").classList.remove("open"); syncHistory(); }
 
+  /* ---------- Tutorial: shown once to everyone (profile "tut"), and again from Settings ---------- */
+  var TUT = [
+    { ic: "hand", t: "Welcome to Fit Crew", p: "Log your food, workouts and weight, and keep each other honest. This quick tour takes about a minute. You can see it again any time in Settings.",
+      m: '<div class="tm-tabs"><span class="on">Crew</span><span>Me</span><span>Train</span></div><p class="tm-cap">Swipe between the three pages, or tap the tabs.</p>' },
+    { ic: "users", t: "The Crew page", show: "crew", li: ["Each mate has a tile. The ring shows calories eaten against their goal, after exercise.", "<b>Green</b> is on track today, <b>red</b> is off track, with how far out.", "Sort by <b>Week points</b>, <b>Streak</b> or <b>Weight progress</b>. Points: 10 for an on-track day, 5 for a workout, 2 for logging.", "Tap a tile to see their week and send a <b>high five</b>."],
+      m: '<div class="tm-tile"><i class="tm-ring"></i><div><b>Sam</b><small>1,640 / 2,200 eaten</small><em>560 cal left</em></div></div>' },
+    { ic: "gear", t: "Settings", show: "settings", li: ["Tap the <b>gear</b>, top right.", "<b>Goals:</b> cutting, maintaining or bulking, daily calories, protein, and weekend calories.", "<b>Profile:</b> height, birth year and sex make your calorie burn accurate.", "<b>Sharing:</b> untick anyone you don't want seeing your data.", "Also your PIN, the rest timer sound, and this tutorial."],
+      m: '<div class="tm-row"><span class="tm-gear">' + "GEAR" + '</span><span class="tm-pill">Goals</span><span class="tm-pill">Profile</span><span class="tm-pill">Sharing</span></div>' },
+    { ic: "list", t: "Logging food", show: "food", li: ["On the <b>Me</b> page, in the <b>Food</b> card.", "<b>Type it:</b> protein, carbs and fat (calories work themselves out), or just the calories.", "<b>Scan a barcode:</b> point the camera at the packet, then say how much you had.", "<b>Claude:</b> describe the meal or take a photo, if you have Claude access.", "<b>Saved, Recent</b> and <b>Ideas:</b> one tap to add. Tap any entry to fix it."],
+      m: '<div class="tm-row"><span class="tm-btn">Scan a barcode</span><span class="tm-btn">Camera</span></div><div class="tm-row"><span class="tm-in">P 40</span><span class="tm-in">C 55</span><span class="tm-in">F 12</span><span class="tm-btn pri">Add</span></div>' },
+    { ic: "star", t: "Save a food for next time", show: "food", ol: ["Log it once.", "Tap it in your Food list.", "Tap <b>Save for later</b>.", "It's now a chip under <b>Saved</b>. Tap the chip to add it again in one go."], note: "To remove one, tap <b>Edit</b> next to Saved, then the chip. Workouts can be saved the same way on the Train page.",
+      m: '<div class="tm-list"><b>Chicken and rice</b><span>620</span></div><div class="tm-row"><span class="tm-btn">Save for later</span><span class="tm-arrow">→</span><span class="tm-chip">Chicken and rice <i>620</i></span></div>' },
+    { ic: "scale", t: "Logging your weight", show: "weight", li: ["On the <b>Me</b> page, in the <b>Weight</b> card, below Food and Water.", "Type your weight in kg and tap <b>Save</b>.", "Weigh in at the same time each day, ideally first thing in the morning.", "Missed a day? Use the arrows at the top of Me to go back."],
+      m: '<div class="tm-row"><span class="tm-in wide">88.4 kg</span><span class="tm-btn pri">Save</span></div><svg class="tm-chart" viewBox="0 0 200 40"><path d="M0 8 L40 12 L80 15 L120 20 L160 24 L200 30"/></svg>' },
+    { ic: "dumbbell", t: "Build your own workouts", show: "build", big: 1, ol: ["Train page, <b>My workouts</b>, then <b>New workout</b>.", "Name it and tick the <b>days</b> you do it.", "<b>Add exercise:</b> search or pick a muscle, then tap to add. Cardio is in there too.", "Set the number of <b>sets</b> with − and +. Reorder with the arrows.", "<b>Superset with next</b> links two exercises so you alternate them.", "Tap <b>Save workout</b>. It's listed in day order, and on its day it sits at the top of Train."],
+      m: '<div class="tm-days"><span class="on">Mo</span><span>Tu</span><span class="on">Th</span><span>Fr</span></div><div class="tm-list"><b>Bench Press</b><span class="tm-stp">− 3 sets +</span></div><div class="tm-list ss"><b>Triceps Pushdown</b><span class="tm-link">Superset with next</span></div><div class="tm-row"><span class="tm-btn">+ Add exercise</span><span class="tm-btn pri">Save workout</span></div>' },
+    { ic: "watch", t: "Doing a workout", show: "train", li: ["Tap <b>Start workout</b>.", "Log each set with the kg and reps steppers. Last time's numbers are filled in.", "The <b>rest timer</b> starts by itself at the top and beeps when it's time.", "Can't get on a machine? <b>Change this exercise (this time only)</b> swaps it just for today.", "Tap <b>Finish</b> and the calories are added to your day."],
+      m: '<div class="tm-row"><span class="tm-in">kg 60</span><span class="tm-in">reps 8</span></div><div class="tm-row"><span class="tm-btn pri wide">Log set 2</span></div><p class="tm-cap">Rest 1:24</p>' }
+  ];
+  function tutOpen(i) { S.tut = i || 0; renderTut(); syncHistory(); }
+  function tutClose(seen) {
+    S.tut = null; var o = document.getElementById("tut"); if (o) o.remove();
+    var u = me(); if (seen !== false && u && !u.tut) changeMe(function (x) { x.tut = 1; });
+    syncHistory();
+  }
+  function renderTut() {
+    var o = document.getElementById("tut");
+    if (S.tut == null) { if (o) o.remove(); return; }
+    if (!o) { o = document.createElement("div"); o.id = "tut"; o.setAttribute("role", "dialog"); o.setAttribute("aria-modal", "true"); document.body.appendChild(o); tutSwipe(o); }
+    var i = S.tut, c = TUT[i], last = i === TUT.length - 1;
+    var body = c.p ? "<p>" + c.p + "</p>" : "";
+    if (c.li) body += "<ul>" + c.li.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ul>";
+    if (c.ol) body += "<ol>" + c.ol.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>";
+    if (c.note) body += '<p class="tnote">' + c.note + "</p>";
+    o.innerHTML = '<div class="tcard' + (c.big ? " big" : "") + '"><div class="thead"><span class="tstep">' + (i + 1) + " of " + TUT.length + '</span><button class="x" data-act="tutskip" aria-label="Close the tutorial">×</button></div>'
+      + '<span class="hic big">' + ICON[c.ic] + "</span><h2>" + esc(c.t) + "</h2>"
+      + '<div class="tmock">' + c.m.replace('"GEAR"', "").replace("GEAR", ICON.gear) + "</div>"
+      + '<div class="tbody">' + body + "</div>"
+      + '<div class="tdots">' + TUT.map(function (x, k) { return '<i class="' + (k === i ? "on" : "") + '"></i>'; }).join("") + "</div>"
+      + '<div class="tbtns"><button class="btn ghost" data-act="tutnav" data-v="-1"' + (i ? "" : " disabled") + ">Back</button>"
+      + (c.show ? '<button class="btn" data-act="tutshow" data-v="' + c.show + '">Show me</button>' : "")
+      + '<button class="btn pri" data-act="tutnav" data-v="1">' + (last ? "Done" : "Next") + "</button></div></div>";
+  }
+  function tutSwipe(o) {
+    var x0 = null;
+    o.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    o.addEventListener("touchend", function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 60) ACT.tutnav({ dataset: { v: dx < 0 ? "1" : "-1" } }); }, { passive: true });
+  }
+  function flash(sel) { setTimeout(function () { var el = typeof sel === "string" ? document.querySelector(sel) : sel; if (!el) return; el.scrollIntoView({ behavior: "smooth", block: "center" }); el.classList.add("tflash"); setTimeout(function () { el.classList.remove("tflash"); }, 2400); }, 450); }
+  function cardByTitle(root, t) { return [].filter.call(document.querySelectorAll(root + " .card"), function (c) { var h = c.querySelector("h2"); return h && h.textContent.indexOf(t) === 0; })[0]; }
+
   /* ---------- Phone back button ----------
    * While anything is open (a sheet, a Train screen, an edit, another tab) the app keeps one extra history
    * entry, so the back button closes that thing instead of leaving the app. Crew tab with nothing open = root. */
   var curTab = 0;
   function atRoot() {
-    return !S.sheet && !document.getElementById("zoom") && curTab === 0;
+    return !S.sheet && !document.getElementById("zoom") && S.tut == null && curTab === 0;
   }
   function syncHistory() {
+    if (S.backPending) return; // one step back is already on its way; check again once it lands
     var has = !!(history.state && history.state.fc);
     if (!atRoot() && !has) history.pushState({ fc: 1 }, "");
-    else if (atRoot() && has) { S.ignorePop = true; history.back(); }
+    else if (atRoot() && has) { S.backPending = true; S.ignorePop = true; history.back(); }
   }
   function goBack() {
     var z = document.getElementById("zoom"); if (z) { z.remove(); return; }
+    if (S.tut != null) { tutClose(); return; }
     if (S.sheet) { closeSheet(); return; }
     if (curTab === 2 && window.FCTrain && FCTrain.goBack()) return;
     if (curTab === 1 && (S.edit || S.est)) { S.edit = null; S.est = null; renderMe(); return; }
     if (curTab !== 0) { curTab = 0; goTab(0); }
   }
   window.addEventListener("popstate", function () {
-    if (S.ignorePop) { S.ignorePop = false; return; }
+    if (S.ignorePop) { S.ignorePop = false; S.backPending = false; setTimeout(syncHistory, 0); return; }
     goBack();
     setTimeout(syncHistory, 0);
   });
@@ -1097,6 +1151,8 @@
       + tip("profile", "Height, age and sex sharpen the burn estimates and the suggested goal.")
       + '<button class="btn pri wide" data-act="saveprofile">Save profile</button></div></div>';
     h += sharingCard(u);
+    if (window.FCTrain) h += FCTrain.soundHtml(u);
+    h += '<div class="card">' + head("bulb", "Help") + '<button class="btn wide" data-act="tutopen">' + ICON.bulb + "View the tutorial</button></div>";
     if (window.FCTrain) h += FCTrain.noEquipHtml(u);
     h += ownerCard();
     h += '<div class="card">' + head("lock", "Security") + '<div class="stack">' + (S.pinless ? '<p class="hint">PINs need the updated Google script.</p>' : '<button class="btn wide" data-act="changepin">' + ICON.lock + "Change my PIN</button>")
@@ -1342,6 +1398,19 @@
     },
     diary: function () { pullDiary(S.date); },
     gotrain: function () { goTab(2); },
+    tutnav: function (b) { var n = S.tut + +b.dataset.v; if (n >= TUT.length) return tutClose(); if (n < 0) return; S.tut = n; renderTut(); },
+    tutskip: function () { tutClose(); },
+    tutopen: function () { closeSheet(); tutOpen(0); },
+    tutshow: function (b) {
+      var v = b.dataset.v; tutClose();
+      if (v === "settings") return openSheet("settings");
+      if (v === "crew") { goTab(0); return flash(".tile"); }
+      if (v === "food") { goTab(1); return flash(cardByTitle("#me", "Food")); }
+      if (v === "weight") { goTab(1); return flash(cardByTitle("#me", "Weight")); }
+      goTab(2);
+      if (v === "build") { if (window.FCTrain && FCTrain.newWorkout) FCTrain.newWorkout(); else flash(cardByTitle("#train", "My workouts")); return; }
+      flash(cardByTitle("#train", "My workouts"));
+    },
     reqaccess: function (b) {
       b.disabled = true;
       call("requestAccess").then(function (j) { if (S.acc) { if (j.already) S.acc.claude = true; else S.acc.req = true; } render(); toast(j.already ? "You already have Claude access" : "Asked. You'll get Claude once it's approved."); }, function (e) { b.disabled = false; toast(e.message); });
